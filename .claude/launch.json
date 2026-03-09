@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "python-backend",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "python_bridge.py"],
+      "port": 8080
+    }
+  ]
+}

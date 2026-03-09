@@ -1,0 +1,490 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.cdnfonts.com/css/open-dyslexic');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Backgrounds: significantly lighter than before ── */
+    --background: 225 22% 15%;
+    --foreground: 210 15% 97%;
+
+    --card: 225 20% 22%;
+    --card-foreground: 210 15% 97%;
+
+    --popover: 225 20% 22%;
+    --popover-foreground: 210 15% 97%;
+
+    /* ── More vibrant primary (teal) & accent (violet) ── */
+    --primary: 172 90% 52%;
+    --primary-foreground: 225 22% 8%;
+
+    --secondary: 225 18% 28%;
+    --secondary-foreground: 210 15% 88%;
+
+    --muted: 225 18% 24%;
+    --muted-foreground: 215 15% 80%;
+
+    --accent: 290 78% 68%;
+    --accent-foreground: 210 15% 97%;
+
+    --destructive: 0 75% 58%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 225 18% 32%;
+    --input: 225 18% 32%;
+    --ring: 172 90% 52%;
+
+    --radius: 0.75rem;
+
+    --glow-primary: 172 90% 52%;
+    --glow-accent: 290 78% 68%;
+    --surface-glass: 225 20% 22%;
+
+    --sidebar-background: 225 22% 15%;
+    --sidebar-foreground: 210 15% 97%;
+    --sidebar-primary: 172 90% 52%;
+    --sidebar-primary-foreground: 225 22% 8%;
+    --sidebar-accent: 225 18% 28%;
+    --sidebar-accent-foreground: 210 15% 97%;
+    --sidebar-border: 225 18% 32%;
+    --sidebar-ring: 172 90% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+    font-size: calc(var(--base-font-size) * var(--text-scale));
+    line-height: calc(1.5 * var(--font-size-multiplier));
+    letter-spacing: calc(0.02em * var(--font-size-multiplier));
+    transition: background-color 0.4s ease, color 0.2s ease, font-size 0.2s ease, line-height 0.2s ease, letter-spacing 0.2s ease;
+    box-sizing: border-box;
+  }
+}
+
+@layer utilities {
+  /* Tinted see-through glass: background shows through with a subtle colour tint */
+  .glass {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    background: hsl(var(--card) / 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 24px hsl(var(--primary) / 0.50), 0 0 72px hsl(var(--primary) / 0.18);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 24px hsl(var(--accent) / 0.50), 0 0 72px hsl(var(--accent) / 0.18);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .surface-gradient {
+    background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--secondary)));
+  }
+}
+
+/* ─── Native datetime-local input styling ──────────────────────────────── */
+input[type="datetime-local"] {
+  color-scheme: dark;
+  border-radius: 0.75rem;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit {
+  color: hsl(var(--foreground));
+  font-weight: 500;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 2px 0;
+}
+
+/* ─── Global high-contrast prose overrides ─────────────────────────────── */
+/* Apply to any markdown/prose container for guaranteed readability */
+.prose-contrast,
+.prose-contrast * {
+  color: hsl(var(--foreground));
+}
+.prose-contrast h1,
+.prose-contrast h2,
+.prose-contrast h3,
+.prose-contrast h4 {
+  color: hsl(var(--foreground));
+  font-weight: 700;
+}
+.prose-contrast p,
+.prose-contrast li,
+.prose-contrast span {
+  color: hsl(var(--foreground) / 0.9);
+}
+.prose-contrast strong,
+.prose-contrast b {
+  color: hsl(var(--foreground));
+}
+.prose-contrast a {
+  color: hsl(var(--primary));
+}
+.prose-contrast th {
+  color: hsl(var(--foreground));
+  font-weight: 700;
+  background: hsl(var(--muted) / 0.5);
+}
+.prose-contrast td {
+  color: hsl(var(--foreground) / 0.9);
+}
+.prose-contrast table {
+  border-collapse: collapse;
+}
+.prose-contrast th,
+.prose-contrast td {
+  border: 1px solid hsl(var(--foreground) / 0.15);
+  padding: 6px 10px;
+}
+.prose-contrast blockquote {
+  color: hsl(var(--foreground) / 0.8);
+  border-left-color: hsl(var(--primary) / 0.5);
+}
+.prose-contrast code {
+  color: hsl(var(--primary));
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* ─── Chat & prose bold/strong text — readable highlights ───────────── */
+.prose strong,
+.prose b,
+.prose-contrast strong,
+.prose-contrast b {
+  color: inherit !important;
+  font-weight: 700;
+  background: hsl(var(--foreground) / 0.06);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+/* Darker highlight in chat bubbles for emphasis */
+.glass .prose strong,
+.glass .prose b {
+  background: hsl(var(--foreground) / 0.18);
+}
+/* Code blocks inside chat bubbles: wrap text, no horizontal scroll */
+.glass .prose pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-x: visible !important;
+  max-width: 100% !important;
+}
+.glass .prose pre code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* ===== Tone Slider custom range input ===== */
+.tone-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--tone-color, hsl(260 80% 55%));
+  box-shadow: 0 0 8px var(--tone-color, hsl(260 80% 55%));
+  border: 2px solid rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.tone-slider-input::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 14px var(--tone-color, hsl(260 80% 55%));
+}
+.tone-slider-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--tone-color, hsl(260 80% 55%));
+  box-shadow: 0 0 8px var(--tone-color, hsl(260 80% 55%));
+  border: 2px solid rgba(255,255,255,0.4);
+  cursor: pointer;
+}
+.tone-slider-input::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 6px;
+}
+.tone-slider-input::-moz-range-track {
+  background: transparent;
+  height: 6px;
+}
+
+.page-header {
+  position: relative;
+  z-index: 10;
+}
+
+/* ===== Theme Background Animations ===== */
+
+/* Organic fluid drift — combines translation, scale and gentle rotation */
+@keyframes theme-marble-drift {
+  0%   { transform: translate(0px,   0px)  scale(1)    rotate(0deg); }
+  20%  { transform: translate(38px, -26px) scale(1.06) rotate(5deg); }
+  45%  { transform: translate(-22px, 40px) scale(0.94) rotate(-7deg); }
+  70%  { transform: translate(20px,  14px) scale(1.04) rotate(3deg); }
+  100% { transform: translate(0px,   0px)  scale(1)    rotate(0deg); }
+}
+
+@keyframes theme-blob-float {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  25%       { transform: translate(22px, -18px) scale(1.05); }
+  50%       { transform: translate(-16px, 22px) scale(0.96); }
+  75%       { transform: translate(12px, 8px) scale(1.02); }
+}
+
+@keyframes theme-star-twinkle {
+  0%, 100% { opacity: var(--star-opacity, 0.35); transform: scale(1); }
+  50%       { opacity: 1; transform: scale(1.8); }
+}
+
+@keyframes theme-firefly-float {
+  0%   { transform: translateY(0px) translateX(0px); opacity: 0; }
+  8%   { opacity: 0.85; }
+  88%  { opacity: 0.6; }
+  100% { transform: translateY(-105vh) translateX(var(--drift, 20px)); opacity: 0; }
+}
+
+@keyframes theme-wave-drift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes theme-sunset-pulse {
+  0%, 100% { opacity: 0.75; }
+  50%       { opacity: 1; }
+}
+
+@keyframes theme-shimmer {
+  0%, 100% { opacity: 0.04; }
+  50%       { opacity: 0.12; }
+}
+
+/* ===== Focus / Calm Mode ===== */
+
+/* Reduce all animations and transitions when Focus mode is active */
+.focus-mode *,
+.focus-mode *::before,
+.focus-mode *::after,
+/* Also apply when user enables Reduced Motion in Customise */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.15s !important;
+}
+
+/* Also respect user's system-level preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+  }
+}
+
+/* Focus mode — accessibility defaults */
+.focus-mode body {
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+
+/* ===== Reduced Motion (user toggle) ===== */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ===== Wide Line Spacing (user toggle) ===== */
+.wide-spacing body,
+.wide-spacing p,
+.wide-spacing span,
+.wide-spacing li,
+.wide-spacing td,
+.wide-spacing th,
+.wide-spacing label,
+.wide-spacing h1, .wide-spacing h2, .wide-spacing h3,
+.wide-spacing h4, .wide-spacing h5, .wide-spacing h6 {
+  line-height: 2.0 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* ===== Glass fallback (if backdrop-filter unsupported) ===== */
+
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-container[data-glass-variant="dark"] {
+    background: rgba(0, 0, 0, 0.45) !important;
+  }
+  .glass-container[data-glass-variant="bright"] {
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+}
+
+/* ===== Dyslexia Font ===== */
+/* Applied via .dyslexia-mode class on <body> — overrides Poppins globally */
+/* 1.05x multiplier makes OpenDyslexic slightly larger for readability */
+
+body.dyslexia-mode {
+  font-family: 'OpenDyslexic', sans-serif !important;
+  font-size: calc(var(--base-font-size) * 1.25 * var(--text-scale)) !important;
+  line-height: calc(1.5 * 1.25 * var(--font-size-multiplier)) !important;
+  letter-spacing: calc(0.02em * 1.25 * var(--font-size-multiplier)) !important;
+  word-spacing: 0.1em !important;
+}
+
+body.dyslexia-mode * {
+  font-family: 'OpenDyslexic', sans-serif !important;
+  letter-spacing: 0.03em !important;
+  word-spacing: 0.1em !important;
+}
+
+/* ===== Accessibility: interactive target size ===== */
+/* Ensure all interactive elements have at least 44px touch targets */
+button, a, [role="button"], input, select, textarea {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Smaller elements that still need to be tappable get padding boost */
+.glass-container button,
+.glass-container a {
+  min-height: 36px;
+}
+
+/* ===== High-Contrast Mode ===== */
+
+.high-contrast-mode {
+  --foreground: 0 0% 100%;
+  --muted-foreground: 0 0% 85%;
+  --background: 0 0% 3%;
+  --card: 0 0% 8%;
+  --border: 0 0% 40%;
+}
+
+.high-contrast-mode * {
+  border-color: hsla(0, 0%, 60%, 0.5) !important;
+}
+
+.high-contrast-mode .glass,
+.high-contrast-mode .glass-container {
+  background: rgba(0, 0, 0, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ===== Text Size Scaling ===== */
+/* Range: 0.9 (90%) to 1.1 (110%), default 1 (100%) */
+/*
+ * WHY: Tailwind utility classes (text-xs, text-sm, text-base, etc.) set
+ * explicit font-size values on each element, overriding any inherited
+ * body font-size. We MUST override each utility class with a scaled version.
+ */
+
+:root {
+  --text-scale: 1;
+  --base-font-size: 1rem;
+  --dyslexia-boost: 1;             /* JS sets to 1.5 when dyslexia mode is on */
+  --font-size-multiplier: 1;       /* JS sets to: text-scale * dyslexia-boost */
+}
+
+/* Override every Tailwind text size class with the combined multiplier */
+.text-\[10px\] { font-size: calc(10px * var(--font-size-multiplier)) !important; }
+.text-\[11px\] { font-size: calc(11px * var(--font-size-multiplier)) !important; }
+.text-\[12px\] { font-size: calc(12px * var(--font-size-multiplier)) !important; }
+.text-2xs     { font-size: calc(0.625rem * var(--font-size-multiplier)) !important; }
+.text-xs      { font-size: calc(0.75rem * var(--font-size-multiplier)) !important; }
+.text-sm      { font-size: calc(0.875rem * var(--font-size-multiplier)) !important; }
+.text-base    { font-size: calc(1rem * var(--font-size-multiplier)) !important; }
+.text-lg      { font-size: calc(1.125rem * var(--font-size-multiplier)) !important; }
+.text-xl      { font-size: calc(1.25rem * var(--font-size-multiplier)) !important; }
+.text-2xl     { font-size: calc(1.5rem * var(--font-size-multiplier)) !important; }
+.text-3xl     { font-size: calc(1.875rem * var(--font-size-multiplier)) !important; }
+.text-4xl     { font-size: calc(2.25rem * var(--font-size-multiplier)) !important; }
+
+/* Elements without a Tailwind text class inherit from body */
+body {
+  font-size: calc(var(--base-font-size) * var(--font-size-multiplier)) !important;
+}
+
+/* When text is scaled up, increase spacing to prevent overlap */
+.large-text,
+.large-text * {
+  line-height: calc(1.75 * var(--font-size-multiplier)) !important;
+  letter-spacing: calc(0.02em * var(--font-size-multiplier));
+}
+
+/* ===== Dynamic Container Scaling ===== */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Cards, panels, glass containers — flexible height, no clipping */
+[class*="CardContent"],
+[class*="CardHeader"],
+.glass,
+.glass-container,
+.card,
+.panel {
+  height: auto !important;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Text elements: wrap at word boundaries only (not mid-word) */
+p, span, h1, h2, h3, h4, h5, h6, label, li, a, button,
+td, th, blockquote, figcaption, summary, legend {
+  overflow-wrap: break-word;
+  min-height: auto;
+  height: auto;
+}
+
+/* ===== Brightness Overlay ===== */
+/* Controlled via --brightness CSS variable on :root (default 1) */
+
+:root {
+  --brightness: 1;
+}
+
+#app-background {
+  filter: brightness(var(--brightness));
+}
+
+/* ===== Disable Blur / Solid Background Mode ===== */
+
+
+/* ===== Quiet Notifications ===== */
+
+.quiet-notifications .sonner-toast,
+.quiet-notifications [data-sonner-toast] {
+  animation: none !important;
+  opacity: 0.7;
+}

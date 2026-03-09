@@ -1,0 +1,65 @@
+[project]
+name = "voice_vision_app"
+version = "0.1.0"
+description = "Voice and vision enabled chat application backend"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "numpy>=1.26.0",
+    "httpx>=0.27.0",
+    "librosa>=0.10.0",
+    "openai>=1.50.0",
+    "websockets>=12.0",
+    "deepagents-cli",
+    "python-multipart>=0.0.9",
+]
+
+
+[project.optional-dependencies]
+stt = [
+    "deepgram-sdk>=3.5.0",
+]
+tts = [
+    "elevenlabs>=1.50.0",
+]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ARG",  # flake8-unused-arguments
+    "D",    # pydocstyle
+]
+ignore = [
+    "D1",   # Allow missing docstrings in dev mode
+    "E501", # Line length (handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
