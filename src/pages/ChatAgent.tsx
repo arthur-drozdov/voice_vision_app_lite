@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Square, Wifi, WifiOff, LogOut, ChevronLeft, Moon, Sun, Sparkles, Trash2, Copy, Check } from "lucide-react";
+import { Send, Square, Wifi, WifiOff, LogOut, ChevronLeft, Moon, Sun, Sparkles, Trash2, Copy, Check, Mic } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,8 +13,9 @@ import GlassContainer from "@/components/GlassContainer";
 import FocusButton from "@/components/FocusButton";
 import ToneSlider from "@/components/ToneSlider";
 import { isFocusActive, toggleFocus } from "@/lib/FocusController";
-import { MoodType, detectContentMood, deriveChatMood } from "@/lib/moodDetector";
+import { MoodType, detectContentMood, deriveChatMood, detectUserMood, buildMoodInstruction, type UserMood } from "@/lib/moodDetector";
 import SaveToCanvasPrompt from "@/components/SaveToCanvasPrompt";
+import VoiceDictationButton from "@/components/VoiceDictationButton";
 import FormatPickerModal from "@/components/FormatPickerModal";
 import MergePickerModal from "@/components/MergePickerModal";
 import UpgradePrompt from "@/components/UpgradePrompt";
@@ -132,7 +133,7 @@ const ChatAgent = () => {
 
   const [messages, setMessages] = useState<{ role: string; text: string; isStreaming?: boolean }[]>([]);
   const [input, setInput] = useState("");
-  const [selectedChar, setSelectedChar] = useState("kai");
+  const [selectedChar, setSelectedChar] = useState("noe");
   const [showCharSelect, setShowCharSelect] = useState(true);
   const [quickInput, setQuickInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -413,9 +414,11 @@ const ChatAgent = () => {
     const canvasMessages: CanvasMessage[] = messages
       .filter((m) => !m.isStreaming)
       .map(({ role, text }) => ({ role, text }));
+    const boardId = `board-${Date.now()}`;
+    const fallbackTitle = generateBoardTitle(canvasMessages, char?.name ?? "AI", now);
     saveBoard({
-      id: `board-${Date.now()}`,
-      title: generateBoardTitle(canvasMessages, char?.name ?? "AI", now),
+      id: boardId,
+      title: fallbackTitle,
       characterId: selectedChar,
       characterEmoji: char?.emoji ?? "\u{1F916}",
       characterName: char?.name ?? "AI",
@@ -429,6 +432,25 @@ const ChatAgent = () => {
     // Show success toast — keep user in chat so they can keep talking
     setShowSaveSuccess(true);
     setTimeout(() => setShowSaveSuccess(false), 4500);
+
+    // Async: generate an AI-powered title in the background
+    fetch("/api/generate-title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: canvasMessages.slice(0, 10).map(m => ({
+          role: m.role, text: m.text.slice(0, 200)
+        })),
+        agent_name: char?.name ?? "AI",
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.title) {
+          updateBoard(boardId, { title: data.title });
+        }
+      })
+      .catch(() => {/* keep fallback title */});
   };
 
   const handleMerge = (boardId: string) => {
@@ -513,7 +535,18 @@ const ChatAgent = () => {
         "Use clear black-on-white or dark-on-light colour pairings.\n" +
         "--- END RULES ---";
       systemPromptSentRef.current = true;
-      bridge.send(text, systemPrompt, sessionIdRef.current, selectedChar);
+
+      // Detect user mood (single source of truth for ToneSlider + system prompt)
+      const userMood = detectUserMood(messages);
+      systemPrompt += buildMoodInstruction(userMood, messages);
+
+      // Build conversation history for the backend (last 20 messages for context)
+      const historyForBackend = messages
+        .filter((m) => !m.isStreaming)
+        .slice(-20)
+        .map(({ role, text }) => ({ role, text }));
+
+      bridge.send(text, systemPrompt, sessionIdRef.current, selectedChar, undefined, historyForBackend);
     },
     [input, selectedChar, char]
   );
@@ -684,13 +717,13 @@ const ChatAgent = () => {
           </div>
         </header>
 
-        <div className="px-6 pb-28">
+        <div className="px-6 pb-4">
           <div className="max-w-[1000px] mx-auto w-full">
 
             {/* ── AI Assistants ────────────────────────────── */}
             <section className="pt-6 pb-4">
               <GlassContainer variant="dark" size="sm" className="inline-block mb-4">
-                <p className="text-sm text-foreground font-bold flex items-center gap-2">
+                <p className="text-sm text-secondary font-bold flex items-center gap-2">
                   {"\u{1F916}"} AI Assistants
                 </p>
               </GlassContainer>
@@ -706,7 +739,7 @@ const ChatAgent = () => {
                       className={`flex flex-col items-center gap-1 p-3 w-[80px] rounded-2xl backdrop-blur-md transition-all duration-200 ${
                         isActive
                           ? "bg-primary/25 border-2 border-primary glow-primary ring-1 ring-primary/30"
-                          : "bg-black/35 border border-white/18 hover:bg-black/50 hover:border-white/30 hover:shadow-lg"
+                          : "glass border border-white/18 hover:border-white/30 hover:shadow-lg"
                       }`}
                     >
                       <span className="text-2xl">{c.emoji}</span>
@@ -744,12 +777,18 @@ const ChatAgent = () => {
                     whileTap={{ scale: 0.9 }}
                     onClick={handleQuickChat}
                     disabled={!quickInput.trim()}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                      quickInput.trim() ? "bg-primary glow-primary" : "bg-muted"
+                    className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors btn-send ${
+                      quickInput.trim() ? "" : "opacity-40 cursor-not-allowed"
                     }`}
                   >
                     <Send size={16} className={quickInput.trim() ? "text-primary-foreground" : "text-muted-foreground"} />
                   </motion.button>
+                  <VoiceDictationButton
+                    onResult={(text) => { setQuickInput(prev => prev ? prev + ' ' + text : text); setSelectedChar(activeChar.id); }}
+                    onInterim={(text) => setQuickInput(text)}
+                    className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                    iconSize={16}
+                  />
                 </div>
               </div>
             </motion.div>
@@ -757,7 +796,7 @@ const ChatAgent = () => {
             {/* ── Chat History ─────────────────────────────── */}
             <section className="pt-10">
               <GlassContainer variant="dark" size="sm" className="inline-block mb-4">
-                <p className="text-sm text-foreground font-bold flex items-center gap-2">
+                <p className="text-sm text-secondary font-bold flex items-center gap-2">
                   {"\u{1F4CB}"} Chat History
                 </p>
               </GlassContainer>
@@ -846,7 +885,7 @@ const ChatAgent = () => {
 
   // ── Chat UI ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full page-chat" data-char={selectedChar}>
       <header className="flex items-center justify-between px-5 pt-12 pb-3 page-header">
         <div className="flex items-center gap-3">
           <button
@@ -878,20 +917,17 @@ const ChatAgent = () => {
               }
               setShowFormatPicker(true);
             }}
-            className="p-2 rounded-xl glass active:scale-95 transition-transform"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass active:scale-95 transition-transform text-[10px] font-medium"
             title="Save to Canvas"
           >
             <Sparkles size={16} className="text-primary" />
-          </button>
-          <button
-            onClick={() => setShowSavePrompt(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl glass text-xs text-muted-foreground active:scale-95 transition-transform"
-          >
-            <LogOut size={13} />
-            End
+            <span className="text-muted-foreground">Canvas</span>
           </button>
         </div>
       </header>
+
+      {/* Aurora stripe — subtle teal light bleed at top */}
+      <div className="aurora-stripe" />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-3">
@@ -922,10 +958,28 @@ const ChatAgent = () => {
               onTouchCancel={handleTouchEnd}
               className={`px-4 py-3 rounded-2xl text-sm overflow-hidden break-words transition-[outline] ${
                 msg.role === "agent"
-                  ? "w-full glass text-foreground self-start prose prose-sm dark:prose-invert"
-                  : "max-w-[80%] bg-primary text-primary-foreground ml-auto"
+                  ? "w-full backdrop-blur-md self-start prose prose-sm dark:prose-invert"
+                  : "max-w-[80%] ml-auto"
               }`}
-              style={{ overflowWrap: "break-word", wordBreak: "break-word", userSelect: "text" }}
+              style={{
+                overflowWrap: "break-word",
+                wordBreak: "break-word",
+                userSelect: "text",
+                backdropFilter: "blur(8px) saturate(1.2)",
+                WebkitBackdropFilter: "blur(8px) saturate(1.2)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                ...(msg.role === "agent"
+                  ? {
+                      // AI bubbles: dedicated contrasting colours per theme
+                      background: "linear-gradient(135deg, hsl(var(--bubble-ai-start) / 0.55) 0%, hsl(var(--bubble-ai-end) / 0.65) 100%)",
+                      color: "hsl(0, 0%, 100%)",
+                    }
+                  : {
+                      // User bubbles: dedicated contrasting colours per theme
+                      background: "linear-gradient(135deg, hsl(var(--bubble-user-start) / 0.55) 0%, hsl(var(--bubble-user-end) / 0.65) 100%)",
+                      color: "hsl(0, 0%, 100%)",
+                    }),
+              }}
             >
               {msg.role === "agent" ? (
                 msg.isStreaming && !msg.text && connectionStatus === "connected" ? (
@@ -951,6 +1005,16 @@ const ChatAgent = () => {
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
+                        a: ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "var(--accent, #60a5fa)", textDecoration: "underline" }}
+                          >
+                            {children} ↗
+                          </a>
+                        ),
                         pre: ({ children }) => (
                           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowX: "hidden", maxWidth: "100%" }}>
                             {children}
@@ -1020,10 +1084,10 @@ const ChatAgent = () => {
       </AnimatePresence>
 
       {/* Input area */}
-      <div className="px-5 pb-24 pt-2 flex flex-col gap-1.5">
+      <div className="px-5 pb-20 pt-2 flex flex-col gap-1.5">
         {/* Tone indicator row — above the input */}
         <div className="flex items-center px-1">
-          <ToneSlider lastUserMessage={messages.filter(m => m.role === "user").at(-1)?.text} />
+          <ToneSlider detectedMood={detectUserMood(messages)} />
         </div>
         <div className="flex items-end gap-2">
         <div className="flex-1 glass rounded-2xl flex items-center">
@@ -1035,27 +1099,27 @@ const ChatAgent = () => {
             className="flex-1 bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
         </div>
-        {!isGenerating && input.trim() ? (
+        {!isGenerating ? (
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => sendMessage()}
-            disabled={connectionStatus === "disconnected" || connectionStatus === "error"}
-            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 glow-primary ${
-              connectionStatus === "disconnected" || connectionStatus === "error"
-                ? "bg-muted cursor-not-allowed"
-                : "bg-primary"
+            disabled={!input.trim() || connectionStatus === "disconnected" || connectionStatus === "error"}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 btn-send ${
+              !input.trim() || connectionStatus === "disconnected" || connectionStatus === "error"
+                ? "opacity-40 cursor-not-allowed"
+                : ""
             }`}
           >
             <Send
               size={18}
               className={
-                connectionStatus === "disconnected" || connectionStatus === "error"
+                !input.trim() || connectionStatus === "disconnected" || connectionStatus === "error"
                   ? "text-muted-foreground"
                   : "text-primary-foreground"
               }
             />
           </motion.button>
-        ) : isGenerating ? (
+        ) : (
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={handleStop}
@@ -1063,7 +1127,13 @@ const ChatAgent = () => {
           >
             <Square size={18} className="text-destructive-foreground" fill="currentColor" />
           </motion.button>
-        ) : null}
+        )}
+        <VoiceDictationButton
+          onResult={(text) => setInput(prev => prev ? prev + ' ' + text : text)}
+          onInterim={(text) => setInput(text)}
+          disabled={isGenerating}
+          iconSize={18}
+        />
         </div>
       </div>
 

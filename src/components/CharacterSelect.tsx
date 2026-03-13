@@ -12,8 +12,8 @@ export interface Character {
 
 export const characters: Character[] = [
   {
-    id: "kai",
-    name: "Kai",
+    id: "noe",
+    name: "Noe",
     emoji: "🤖",
     color: "hsl(210, 90%, 58%)",
     bgClass: "from-blue-500/20 to-cyan-500/20",
@@ -78,7 +78,7 @@ const CharacterSelect = ({ selected, onSelect, compact }: CharacterSelectProps) 
               title={`${char.name} — ${char.description}`}
               className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all backdrop-blur-md ${
                 isActive
-                  ? "bg-primary/25 border-2 border-primary glow-primary"
+                  ? `bg-primary/25 border-2 border-primary char-glow-${char.id}`
                   : "bg-black/35 border border-white/18 hover:bg-black/50 hover:border-white/30"
               }`}
             >
@@ -123,7 +123,7 @@ const CharCard = ({ char, selected, onSelect }: CharCardProps) => {
       onClick={() => onSelect(char.id)}
       className={`flex flex-col items-center gap-1 p-3 w-[80px] rounded-2xl transition-all backdrop-blur-md ${
         isActive
-          ? "bg-primary/25 border-2 border-primary glow-primary"
+          ? `bg-primary/25 border-2 border-primary char-glow-${char.id}`
           : "bg-black/35 border border-white/18 hover:bg-black/50 hover:border-white/30"
       }`}
     >

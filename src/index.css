@@ -5,52 +5,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide default scrollbar, show subtle thin indicator */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+*::-webkit-scrollbar {
+  width: 3px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 @layer base {
   :root {
-    /* ── Backgrounds: significantly lighter than before ── */
-    --background: 225 22% 15%;
-    --foreground: 210 15% 97%;
+    /* ── Iridescent Dark Teal — Moodboard v2 ── */
+    --background: 175 40% 6%;
+    --foreground: 0 0% 96%;
 
-    --card: 225 20% 22%;
-    --card-foreground: 210 15% 97%;
+    --card: 172 30% 15%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 225 20% 22%;
-    --popover-foreground: 210 15% 97%;
+    --popover: 172 30% 15%;
+    --popover-foreground: 0 0% 96%;
 
-    /* ── More vibrant primary (teal) & accent (violet) ── */
-    --primary: 172 90% 52%;
-    --primary-foreground: 225 22% 8%;
+    /* ── Teal primary, Lavender accent ── */
+    --primary: 185 60% 50%;
+    --primary-foreground: 175 40% 6%;
 
-    --secondary: 225 18% 28%;
-    --secondary-foreground: 210 15% 88%;
+    --secondary: 180 20% 65%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 225 18% 24%;
-    --muted-foreground: 215 15% 80%;
+    --muted: 172 25% 18%;
+    --muted-foreground: 0 0% 88%;
 
-    --accent: 290 78% 68%;
-    --accent-foreground: 210 15% 97%;
+    --accent: 270 55% 72%;
+    --accent-foreground: 0 0% 96%;
 
     --destructive: 0 75% 58%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 225 18% 32%;
-    --input: 225 18% 32%;
-    --ring: 172 90% 52%;
+    --border: 180 40% 22%;
+    --input: 180 25% 60%;
+    --ring: 185 60% 50%;
 
     --radius: 0.75rem;
 
-    --glow-primary: 172 90% 52%;
-    --glow-accent: 290 78% 68%;
-    --surface-glass: 225 20% 22%;
+    --glow-primary: 185 60% 50%;
+    --glow-accent: 270 55% 72%;
+    --surface-glass: 172 55% 20%;
+    --greeting-start: 195 80% 80%;
+    --greeting-mid: 210 65% 70%;
+    --greeting-end: 172 60% 65%;
 
-    --sidebar-background: 225 22% 15%;
-    --sidebar-foreground: 210 15% 97%;
-    --sidebar-primary: 172 90% 52%;
-    --sidebar-primary-foreground: 225 22% 8%;
-    --sidebar-accent: 225 18% 28%;
-    --sidebar-accent-foreground: 210 15% 97%;
-    --sidebar-border: 225 18% 32%;
-    --sidebar-ring: 172 90% 52%;
+    --sidebar-background: 175 40% 6%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 185 60% 50%;
+    --sidebar-primary-foreground: 175 40% 6%;
+    --sidebar-accent: 172 25% 17%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 172 25% 22%;
+    --sidebar-ring: 185 60% 50%;
   }
 }
 
@@ -68,16 +90,40 @@
     transition: background-color 0.4s ease, color 0.2s ease, font-size 0.2s ease, line-height 0.2s ease, letter-spacing 0.2s ease;
     box-sizing: border-box;
   }
+
+  /*
+   * Global bottom‑nav clearance — adds invisible space at the
+   * bottom of every PAGE-LEVEL scrollable container so content
+   * is never hidden behind the 64px BottomNav.
+   * Excludes .flex-1 containers (internal scroll areas like chat messages).
+   */
+  main .overflow-y-auto:not(.flex-1)::after,
+  main .overflow-auto:not(.flex-1)::after {
+    content: "";
+    display: block;
+    height: 5rem;             /* 80px — covers 64px nav + breathing room */
+    min-height: 5rem;
+    flex-shrink: 0;
+  }
 }
 
 @layer utilities {
-  /* Tinted see-through glass: background shows through with a subtle colour tint */
+  /* Tinted see-through glass: shows theme colour through frosted effect */
   .glass {
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    background: hsl(var(--card) / 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(12px) saturate(1.3);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    background: hsl(var(--surface-glass) / 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Radix Select item highlight — visible on hover/highlight */
+  [role="option"][data-highlighted] {
+    background: hsl(var(--primary) / 0.20) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+  [role="option"]:hover {
+    background: hsl(var(--primary) / 0.15) !important;
   }
 
   .glow-primary {
@@ -93,8 +139,119 @@
     background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
   }
 
+  /* Greeting shimmer — Iridescent multi-colour with sparkle sweep */
+  .greeting-shimmer {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--greeting-start)) 0%,
+      hsl(var(--greeting-mid)) 33%,
+      hsl(var(--greeting-end)) 66%,
+      hsl(var(--greeting-start)) 100%
+    );
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: greeting-sparkle 4s ease-in-out infinite;
+  }
+
+  /* Focus / Calm mode — plain white, no animation */
+  .focus-mode .greeting-shimmer {
+    background: none;
+    -webkit-text-fill-color: white;
+    color: white;
+    animation: none;
+  }
+
   .surface-gradient {
     background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--secondary)));
+  }
+
+  /* ── Smooth global transition ── */
+  .transition-theme {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Primary button — iridescent gradient ── */
+  .btn-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(var(--primary-foreground));
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1.25rem;
+    font-weight: 600;
+    box-shadow: 0 0 15px hsl(var(--glow-primary) / 0.30);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 0 22px hsl(var(--glow-primary) / 0.50), 0 0 44px hsl(var(--glow-accent) / 0.20);
+    transform: scale(1.02);
+  }
+
+  /* ── Secondary button ── */
+  .btn-secondary {
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    padding: 0.625rem 1.25rem;
+    font-weight: 500;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-secondary:hover {
+    background: hsl(var(--glow-primary) / 0.15);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* ── Send button (round, gradient) ── */
+  .btn-send {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(var(--primary-foreground));
+    border: none;
+    box-shadow: 0 0 12px hsl(var(--glow-primary) / 0.35);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-send:hover {
+    box-shadow: 0 0 18px hsl(var(--glow-primary) / 0.55);
+    transform: scale(1.05);
+  }
+
+  /* ── Input focus — iridescent border ── */
+  input:focus, textarea:focus, [contenteditable]:focus {
+    outline: none;
+    border-color: hsl(var(--primary)) !important;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.20), 0 0 12px hsl(var(--glow-primary) / 0.15);
+  }
+  input::placeholder, textarea::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ── Active/selected card — iridescent gradient border ── */
+  .card-iridescent {
+    position: relative;
+    background: hsl(var(--card));
+    border-radius: 1rem;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .card-iridescent::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    z-index: -1;
+    opacity: 0.6;
+  }
+
+  /* ── Hero card glow overlay ── */
+  .card-hero-glow::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at top right, hsl(var(--glow-primary) / 0.12), transparent 60%);
+    pointer-events: none;
   }
 }
 
@@ -241,11 +398,17 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 /* ===== Theme Background Animations ===== */
 
 /* Organic fluid drift — combines translation, scale and gentle rotation */
+@keyframes greeting-sparkle {
+  0%   { background-position: 100% 50%; }
+  50%  { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
 @keyframes theme-marble-drift {
   0%   { transform: translate(0px,   0px)  scale(1)    rotate(0deg); }
-  20%  { transform: translate(38px, -26px) scale(1.06) rotate(5deg); }
-  45%  { transform: translate(-22px, 40px) scale(0.94) rotate(-7deg); }
-  70%  { transform: translate(20px,  14px) scale(1.04) rotate(3deg); }
+  20%  { transform: translate(80px, -55px) scale(1.15) rotate(8deg); }
+  45%  { transform: translate(-50px, 75px) scale(0.85) rotate(-12deg); }
+  70%  { transform: translate(45px,  30px) scale(1.10) rotate(5deg); }
   100% { transform: translate(0px,   0px)  scale(1)    rotate(0deg); }
 }
 
@@ -274,13 +437,75 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 @keyframes theme-sunset-pulse {
-  0%, 100% { opacity: 0.75; }
-  50%       { opacity: 1; }
+  0%, 100% { opacity: 0.50; transform: scale(1); }
+  50%       { opacity: 1; transform: scale(1.12); }
 }
 
 @keyframes theme-shimmer {
   0%, 100% { opacity: 0.04; }
   50%       { opacity: 0.12; }
+}
+
+@keyframes bg-breathe {
+  0%, 100% { transform: scale(1.0); }
+  50%       { transform: scale(1.08); }
+}
+
+/* ── Midnight theme keyframes ── */
+@keyframes midnight-nebula-breath {
+  0%, 100% { opacity: 0.88; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.04); }
+}
+
+@keyframes midnight-moon-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes midnight-celestial-pulse {
+  0%, 100% { opacity: 0.70; }
+  50%       { opacity: 1; }
+}
+
+/* Twinkling star */
+.midnight-star {
+  opacity: 0.15;
+  animation: midnight-star-twinkle 3s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes midnight-star-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%      { opacity: 0.90; transform: scale(1.4); }
+}
+
+/* Moon phase appear/disappear cycle */
+@keyframes midnight-moon-phase-cycle {
+  0%, 8%   { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  12%, 20% { opacity: 1; transform: translateX(-50%) scale(1); }
+  24%, 100%{ opacity: 0; transform: translateX(-50%) scale(0.7); }
+}
+
+/* Slow constellation circle rotation */
+@keyframes midnight-constellation-rotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Constellation group cycling: 3 groups, each visible for 1/3 of the cycle */
+.midnight-constellation-group {
+  opacity: 0;
+  animation: midnight-constellation-cycle 36s ease-in-out infinite;
+}
+@keyframes midnight-constellation-cycle {
+  0%, 5%   { opacity: 0; }
+  10%, 28% { opacity: 0.65; }
+  33%, 100%{ opacity: 0; }
+}
+
+@keyframes bg-hue-drift {
+  0%   { filter: hue-rotate(0deg) saturate(1); }
+  50%  { filter: hue-rotate(8deg) saturate(1.05); }
+  100% { filter: hue-rotate(0deg) saturate(1); }
 }
 
 /* ===== Focus / Calm Mode ===== */
@@ -300,9 +525,9 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* Also respect user's system-level preference */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(#app-background *),
+  *:not(#app-background *)::before,
+  *:not(#app-background *)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.15s !important;
@@ -355,16 +580,26 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 body.dyslexia-mode {
   font-family: 'OpenDyslexic', sans-serif !important;
-  font-size: calc(var(--base-font-size) * 1.25 * var(--text-scale)) !important;
-  line-height: calc(1.5 * 1.25 * var(--font-size-multiplier)) !important;
+  line-height: 1.8 !important;
   letter-spacing: calc(0.02em * 1.25 * var(--font-size-multiplier)) !important;
-  word-spacing: 0.1em !important;
+  word-spacing: 0.12em !important;
 }
 
-body.dyslexia-mode * {
+body.dyslexia-mode *:not(h1):not(.greeting-shimmer) {
   font-family: 'OpenDyslexic', sans-serif !important;
+  line-height: 1.75 !important;
   letter-spacing: 0.03em !important;
-  word-spacing: 0.1em !important;
+  word-spacing: 0.12em !important;
+}
+
+/* Keep all page headers completely unchanged in dyslexia mode */
+body.dyslexia-mode h1.greeting-shimmer,
+body.dyslexia-mode h1 {
+  font-family: 'Poppins', system-ui, -apple-system, sans-serif !important;
+  font-size: unset !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  line-height: normal !important;
 }
 
 /* ===== Accessibility: interactive target size ===== */
@@ -488,3 +723,370 @@ td, th, blockquote, figcaption, summary, legend {
   animation: none !important;
   opacity: 0.7;
 }
+
+/* ===== Per-Page Background Variations ===== */
+/* Each page adds a .page-* class. Backgrounds are layered via ::before to not
+   interfere with content. The base --background colour is still used as the
+   absolute fallback; these just add atmosphere on top. */
+
+@keyframes vv-shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes vv-pulse-glow {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.8; }
+}
+
+@keyframes vv-float-particle {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(-40vh) translateX(15px); }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-80vh) translateX(-10px); opacity: 0; }
+}
+
+/* Shared page-bg setup */
+.page-home,
+.page-chat,
+.page-canvas,
+.page-video,
+.page-customize {
+  position: relative;
+}
+
+.page-home::before,
+.page-chat::before,
+.page-canvas::before,
+.page-video::before,
+.page-customize::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Make sure content sits above the background layer */
+.page-home > *,
+.page-chat > *,
+.page-canvas > *,
+.page-video > *,
+.page-customize > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── DEFAULT THEME per-page backgrounds ── */
+/* Removed — wallpaper preset system (ThemeBackground) handles all
+   backgrounds for the default theme. Other themes below retain their
+   per-page backgrounds until they get their own preset system. */
+
+/* ── MIDNIGHT THEME per-page backgrounds ── */
+/* Removed — wallpaper preset system (MidnightBg) handles all
+   backgrounds for the midnight theme. */
+
+/* ── FOREST THEME per-page backgrounds ── */
+
+[data-theme="forest"] .page-home::before {
+  background: linear-gradient(145deg,
+    hsl(155,25%,8%) 0%,
+    hsl(138,30%,10%) 30%,
+    hsl(82,25%,9%) 60%,
+    hsl(160,22%,8%) 100%);
+  background-size: 300% 300%;
+  animation: vv-shimmer 10s ease infinite;
+}
+
+[data-theme="forest"] .page-chat::before {
+  background:
+    radial-gradient(ellipse at 50% 0%, hsla(138,78%,50%,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, hsla(82,78%,55%,0.06) 0%, transparent 50%),
+    hsl(160,22%,9%);
+}
+
+[data-theme="forest"] .page-canvas::before {
+  background:
+    radial-gradient(ellipse at 30% 20%, hsla(138,55%,40%,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsla(82,50%,45%,0.06) 0%, transparent 45%),
+    linear-gradient(135deg, hsl(160,22%,10%) 0%, hsl(155,20%,12%) 50%, hsl(160,20%,9%) 100%);
+}
+
+[data-theme="forest"] .page-video::before {
+  background:
+    radial-gradient(ellipse at 25% 20%, hsla(138,78%,50%,0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 75%, hsla(82,78%,55%,0.06) 0%, transparent 40%),
+    hsl(160,22%,9%);
+  animation: vv-pulse-glow 4s ease-in-out infinite;
+}
+
+[data-theme="forest"] .page-customize::before {
+  background: radial-gradient(ellipse at 30% 25%, hsl(160,25%,14%) 0%, hsl(160,22%,10%) 55%, hsl(160,20%,8%) 100%);
+}
+
+/* ── SUNSET THEME per-page backgrounds ── */
+
+[data-theme="sunset"] .page-home::before {
+  background: linear-gradient(145deg,
+    hsl(15,28%,8%) 0%,
+    hsl(28,35%,10%) 30%,
+    hsl(350,25%,9%) 60%,
+    hsl(15,25%,8%) 100%);
+  background-size: 300% 300%;
+  animation: vv-shimmer 10s ease infinite;
+}
+
+[data-theme="sunset"] .page-chat::before {
+  background:
+    radial-gradient(ellipse at 50% 0%, hsla(28,95%,60%,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, hsla(350,82%,55%,0.06) 0%, transparent 50%),
+    hsl(15,25%,10%);
+}
+
+[data-theme="sunset"] .page-canvas::before {
+  background:
+    radial-gradient(ellipse at 30% 20%, hsla(28,70%,50%,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsla(350,60%,45%,0.06) 0%, transparent 45%),
+    linear-gradient(135deg, hsl(15,25%,11%) 0%, hsl(20,22%,13%) 50%, hsl(15,22%,10%) 100%);
+}
+
+[data-theme="sunset"] .page-video::before {
+  background:
+    radial-gradient(ellipse at 25% 20%, hsla(28,95%,60%,0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 75%, hsla(350,82%,55%,0.06) 0%, transparent 40%),
+    hsl(15,25%,10%);
+  animation: vv-pulse-glow 4s ease-in-out infinite;
+}
+
+[data-theme="sunset"] .page-customize::before {
+  background: radial-gradient(ellipse at 30% 25%, hsl(20,28%,14%) 0%, hsl(15,25%,10%) 55%, hsl(12,22%,8%) 100%);
+}
+
+/* ── OCEAN THEME per-page backgrounds ── */
+
+[data-theme="ocean"] .page-home::before {
+  background: linear-gradient(145deg,
+    hsl(200,30%,10%) 0%,
+    hsl(195,35%,12%) 30%,
+    hsl(175,30%,10%) 60%,
+    hsl(200,28%,9%) 100%);
+  background-size: 300% 300%;
+  animation: vv-shimmer 10s ease infinite;
+}
+
+[data-theme="ocean"] .page-chat::before {
+  background:
+    radial-gradient(ellipse at 50% 0%, hsla(200,88%,55%,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, hsla(175,82%,50%,0.06) 0%, transparent 50%),
+    hsl(200,28%,11%);
+}
+
+[data-theme="ocean"] .page-canvas::before {
+  background:
+    radial-gradient(ellipse at 30% 20%, hsla(200,65%,50%,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsla(175,60%,45%,0.06) 0%, transparent 45%),
+    linear-gradient(135deg, hsl(200,28%,12%) 0%, hsl(195,25%,13%) 50%, hsl(200,25%,11%) 100%);
+}
+
+[data-theme="ocean"] .page-video::before {
+  background:
+    radial-gradient(ellipse at 25% 20%, hsla(200,88%,55%,0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 75%, hsla(175,82%,50%,0.06) 0%, transparent 40%),
+    hsl(200,28%,11%);
+  animation: vv-pulse-glow 4s ease-in-out infinite;
+}
+
+[data-theme="ocean"] .page-customize::before {
+  background: radial-gradient(ellipse at 30% 25%, hsl(200,30%,16%) 0%, hsl(200,28%,12%) 55%, hsl(200,25%,10%) 100%);
+}
+
+/* ── FOCUS THEME — minimal, no animated backgrounds ── */
+
+[data-theme="focus"] .page-home::before,
+[data-theme="focus"] .page-chat::before,
+[data-theme="focus"] .page-canvas::before,
+[data-theme="focus"] .page-video::before,
+[data-theme="focus"] .page-customize::before {
+  background: hsl(210, 18%, 9%);
+}
+
+/* ── Respect reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .page-home::before,
+  .page-video::before {
+    animation: none !important;
+  }
+}
+
+/* ===== Gradient Chat Bubbles ===== */
+/* Uses --user-bubble-gradient and --ai-bubble-gradient set by applyTheme().
+   When the value is "none", the fallback solid colour is used instead. */
+
+.msg-bubble-user {
+  background: var(--user-bubble-gradient, hsl(var(--primary))) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  box-shadow: 0 2px 8px hsla(172,88%,50%,0.15);
+}
+
+.msg-bubble-ai {
+  background: var(--ai-bubble-gradient, hsl(var(--card))) !important;
+  border: 1px solid hsla(172,88%,50%,0.08);
+  color: hsl(185, 25%, 92%) !important;
+}
+
+/* ===== Per-Character Bubble Colours ===== */
+/* Each character has unique bubble gradients matching their personality.
+   Applied via [data-char="id"] on the chat page container. */
+
+/* Noe ✦ — User: Blue→Ice / AI: Lavender→Pearl */
+[data-char="noe"] .msg-bubble-user {
+  background: linear-gradient(135deg, hsla(210,88%,48%,0.6), hsla(200,60%,55%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+[data-char="noe"] .msg-bubble-ai {
+  background: linear-gradient(135deg, hsla(270,45%,38%,0.6), hsla(290,35%,44%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Flo 🌺 — User: Coral→Rose / AI: Teal→Sage */
+[data-char="flo"] .msg-bubble-user {
+  background: linear-gradient(135deg, hsla(330,75%,52%,0.6), hsla(350,70%,50%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+[data-char="flo"] .msg-bubble-ai {
+  background: linear-gradient(135deg, hsla(172,65%,32%,0.6), hsla(152,50%,38%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Spark 🔥 — User: Amber→Gold / AI: Violet→Lavender */
+[data-char="spark"] .msg-bubble-user {
+  background: linear-gradient(135deg, hsla(25,92%,48%,0.6), hsla(38,88%,50%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+[data-char="spark"] .msg-bubble-ai {
+  background: linear-gradient(135deg, hsla(260,50%,40%,0.6), hsla(270,45%,48%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Luna 🌙 — User: Violet→Pearl / AI: Teal→Ice */
+[data-char="luna"] .msg-bubble-user {
+  background: linear-gradient(135deg, hsla(270,55%,55%,0.6), hsla(290,40%,52%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+[data-char="luna"] .msg-bubble-ai {
+  background: linear-gradient(135deg, hsla(172,70%,34%,0.6), hsla(200,55%,42%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Eden 🧭 — User: Sage→Emerald / AI: Gold→Amber */
+[data-char="eden"] .msg-bubble-user {
+  background: linear-gradient(135deg, hsla(152,65%,40%,0.6), hsla(145,55%,42%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+[data-char="eden"] .msg-bubble-ai {
+  background: linear-gradient(135deg, hsla(38,68%,42%,0.6), hsla(28,60%,46%,0.6)) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Focus theme — override all character bubbles back to flat */
+[data-theme="focus"] .msg-bubble-user {
+  background: hsl(var(--primary)) !important;
+}
+[data-theme="focus"] .msg-bubble-ai {
+  background: hsl(var(--card)) !important;
+}
+
+/* ===== Sparkle Divider Line (Home sections — default theme only) ===== */
+.sparkle-divider {
+  height: 1px;
+  width: 100%;
+  border: none;
+  margin: 0;
+  background: transparent;
+}
+[data-theme="default"] .sparkle-divider {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.08) 20%,
+    hsl(var(--primary) / 0.15) 40%,
+    hsl(var(--accent) / 0.12) 60%,
+    hsl(var(--primary) / 0.08) 80%,
+    transparent 100%
+  );
+}
+
+/* ===== Aurora Stripe (Chat top edge — default theme only) ===== */
+.aurora-stripe {
+  height: 0;
+  flex-shrink: 0;
+}
+[data-theme="default"] .aurora-stripe {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.12) 30%,
+    hsl(var(--primary) / 0.20) 50%,
+    hsl(var(--accent) / 0.10) 70%,
+    transparent 100%
+  );
+}
+
+/* ===== Canvas Grid Lines (default theme only) ===== */
+[data-theme="default"] .page-canvas {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ===== Character Avatar Glow Colours ===== */
+/* Each character gets a personality-coloured ring glow */
+.char-glow-kai {
+  box-shadow: 0 0 12px hsla(210, 88%, 55%, 0.4), 0 0 24px hsla(210, 88%, 55%, 0.15);
+}
+.char-glow-flo {
+  box-shadow: 0 0 12px hsla(330, 75%, 58%, 0.4), 0 0 24px hsla(330, 75%, 58%, 0.15);
+}
+.char-glow-spark {
+  box-shadow: 0 0 12px hsla(25, 92%, 55%, 0.4), 0 0 24px hsla(25, 92%, 55%, 0.15);
+}
+.char-glow-luna {
+  box-shadow: 0 0 12px hsla(260, 65%, 60%, 0.4), 0 0 24px hsla(260, 65%, 60%, 0.15);
+}
+.char-glow-eden {
+  box-shadow: 0 0 12px hsla(152, 65%, 45%, 0.4), 0 0 24px hsla(152, 65%, 45%, 0.15);
+}
+
+/* Avatar background circle — when no image present */
+.avatar-bg {
+  background: linear-gradient(135deg, hsl(var(--surface-glass)), hsl(var(--secondary)));
+  border: 1px solid hsl(var(--border));
+}
+
+/* ===== Customize Toggle Styling ===== */
+/* Active toggle: teal glow */
+[data-state="checked"] {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 10px hsl(var(--glow-primary) / 0.4);
+}
+
+/* Inactive toggle */
+[data-state="unchecked"] {
+  background-color: hsl(var(--secondary)) !important;
+}
+
+/* ===== Settings Section Headers ===== */
+.section-header {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+

@@ -176,15 +176,16 @@ export class PythonBridge {
    * @param text - The user's message
    * @param systemPrompt - Optional character + tone system prompt (sent with first message of a session)
    * @param threadId - Session ID used by the backend LangGraph checkpointer for per-session memory
-   * @param agentName - Optional agent name for multi-agent memory tagging (e.g. "kai", "eden")
+   * @param agentName - Optional agent name for multi-agent memory tagging (e.g. "noe", "eden")
    * @param conversationId - Optional conversation ID for shared multi-agent memory (defaults to threadId)
    */
-  send(text: string, systemPrompt?: string, threadId?: string, agentName?: string, conversationId?: string): void {
-    const data: Record<string, string> = { text };
+  send(text: string, systemPrompt?: string, threadId?: string, agentName?: string, conversationId?: string, history?: Array<{role: string; text: string}>): void {
+    const data: Record<string, any> = { text };
     if (systemPrompt) data.system_prompt = systemPrompt;
     if (threadId) data.thread_id = threadId;
     if (agentName) data.agent_name = agentName;
     if (conversationId) data.conversation_id = conversationId;
+    if (history && history.length > 0) data.history = history;
     const payload = JSON.stringify(data);
 
     if (this.ws && this.status === "connected") {

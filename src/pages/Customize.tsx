@@ -43,6 +43,9 @@ import { themes, applyTheme } from "@/lib/themes";
 import { TONES, ToneId } from "@/lib/characterPrompts";
 import GlassContainer from "@/components/GlassContainer";
 import { isFocusActive, toggleFocus } from "@/lib/FocusController";
+
+import { wallpaperPresets, getSelectedWallpaper, setSelectedWallpaper } from "@/lib/wallpaperPresets";
+import { midnightWallpaperPresets, getSelectedMidnightWallpaper, setSelectedMidnightWallpaper } from "@/lib/midnightWallpaperPresets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -68,7 +71,7 @@ const Customize = () => {
   const navigate = useNavigate();
   
   const [settings, setSettings] = useState<Settings>({
-    character: "kai",
+    character: "noe",
     tone: "warm",
     background: "default",
     volume: 80,
@@ -82,13 +85,20 @@ const Customize = () => {
   const [customBgUrl, setCustomBgUrl] = useState<string>(
     () => localStorage.getItem("customBackground") ?? ""
   );
+  const [customBgActive, setCustomBgActive] = useState(
+    () => localStorage.getItem('customBgActive') !== 'false' && !!localStorage.getItem('customBackground')
+  );
   const [focusMode, setFocusMode] = useState(isFocusActive);
   const [dyslexiaFont, setDyslexiaFont] = useState(
     () => localStorage.getItem("dyslexia-font") === "true"
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialLoadRef = useRef(true);
-
+  const [activeWp, setActiveWp] = useState(() =>
+    document.documentElement.dataset.theme === "midnight"
+      ? getSelectedMidnightWallpaper()
+      : getSelectedWallpaper()
+  );
   // Accessibility states
   const [textScale, setTextScale] = useState(() => {
     const saved = localStorage.getItem("text-scale");
@@ -134,10 +144,21 @@ const Customize = () => {
   }, [settings]);
 
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-save immediately so theme persists across navigation
+      try { localStorage.setItem("customize-settings", JSON.stringify(next)); } catch {}
+      return next;
+    });
     if (key === "background") {
       applyTheme(value as string);
       if (value === "custom") window.dispatchEvent(new Event("customBgUpdate"));
+      // Sync wallpaper preset selection to the new theme
+      if (value === "midnight") {
+        setActiveWp(getSelectedMidnightWallpaper());
+      } else {
+        setActiveWp(getSelectedWallpaper());
+      }
     }
   };
 
@@ -153,8 +174,11 @@ const Customize = () => {
         try {
           localStorage.setItem("customBackground", dataUrl);
           setCustomBgUrl(dataUrl);
+          localStorage.setItem('customBgActive', 'true');
+          setCustomBgActive(true);
           updateSetting("background", "custom");
           window.dispatchEvent(new Event("customBgUpdate"));
+          window.dispatchEvent(new Event('customBgToggle'));
         } catch {
           toast({ title: "Image too large", description: "Please use a smaller GIF.", variant: "destructive" });
         }
@@ -176,8 +200,10 @@ const Customize = () => {
           try {
             localStorage.setItem("customBackground", resized);
             setCustomBgUrl(resized);
+            localStorage.setItem('customBgActive', 'true');
             updateSetting("background", "custom");
             window.dispatchEvent(new Event("customBgUpdate"));
+            window.dispatchEvent(new Event('customBgToggle'));
           } catch {
             toast({ title: "Image too large", description: "Please use a smaller image.", variant: "destructive" });
           }
@@ -294,20 +320,27 @@ const Customize = () => {
 
   const handleReset = () => {
     if (confirm("Are you sure you want to reset all settings to defaults?")) {
-      setSettings({
-        character: "kai",
+      const defaults: Settings = {
+        character: "noe",
         tone: "warm",
         background: "default",
         volume: 80,
         isMuted: false,
         isCameraEnabled: true,
         selectedVoiceId: null,
-      });
-      localStorage.removeItem("customize-settings");
+      };
+      setSettings(defaults);
+      localStorage.setItem("customize-settings", JSON.stringify(defaults));
       localStorage.removeItem("customBackground");
+      localStorage.setItem("customBgActive", "false");
       setCustomBgUrl("");
+      setCustomBgActive(false);
       applyTheme("default");
+      // Reset wallpaper to Signature
+      setActiveWp("signature");
+      setSelectedWallpaper("signature");
       window.dispatchEvent(new Event("customBgUpdate"));
+      window.dispatchEvent(new Event("customBgToggle"));
       toast({
         title: "Settings Reset",
         description: "All settings have been reset to defaults.",
@@ -319,36 +352,17 @@ const Customize = () => {
   const selectableThemes = themes.filter((t) => t.id !== "focus");
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full page-customize">
       {/* Header */}
       <header className="flex items-center justify-between px-5 pt-12 pb-4">
         <GlassContainer variant="dark" size="sm" className="flex flex-col">
           <h1 className="text-lg font-semibold text-foreground leading-tight">Customise</h1>
           <p className="text-xs text-muted-foreground">Theme, voice & accessibility</p>
         </GlassContainer>
-        <div className="flex items-center gap-2">
-          {isDirty && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <GlassContainer variant="dark" size="sm" className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-[10px] text-muted-foreground">Unsaved</span>
-              </GlassContainer>
-            </motion.div>
-          )}
-          {!isDirty && saveStatus === "idle" && (
-            <GlassContainer variant="dark" size="sm" className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-[10px] text-muted-foreground">Saved</span>
-            </GlassContainer>
-          )}
-        </div>
       </header>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-5 pb-32 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 pb-16 space-y-4">
 
         {/* Tone of Voice — Dropdown */}
         <Card className="glass">
@@ -391,7 +405,7 @@ const Customize = () => {
             </CardTitle>
             <CardDescription>Select a theme for your interface</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className={`transition-opacity duration-300 ${focusMode ? "opacity-40 pointer-events-none" : ""}`}>
             <div className="flex gap-3 flex-wrap justify-center">
               {selectableThemes.map((theme) => (
                 <motion.button
@@ -400,17 +414,17 @@ const Customize = () => {
                   onClick={() => updateSetting("background", theme.id)}
                   className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
                     settings.background === theme.id
-                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                      ? "ring-1 ring-primary"
                       : "hover:opacity-80"
                   }`}
                 >
                   <div
-                    className={`w-12 h-12 rounded-xl border-2 transition-colors ${
+                    className={`w-12 h-12 rounded-full border transition-colors ${
                       settings.background === theme.id
                         ? "border-primary shadow-lg"
                         : "border-border"
                     }`}
-                    style={{ backgroundColor: theme.swatch }}
+                    style={{ background: theme.swatchGradient || theme.swatch }}
                   />
                   <span className="text-[10px] text-muted-foreground font-medium">
                     {theme.label}
@@ -419,40 +433,97 @@ const Customize = () => {
               ))}
             </div>
 
+            {/* Wallpaper presets — always visible for accent colour selection */}
+            <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {customBgActive
+                  ? "Accent colour — tap to change button & UI colours"
+                  : "Background preset — tap to preview"}
+              </p>
+              <div className="grid grid-cols-5 gap-1.5">
+                {(settings.background === "midnight" ? midnightWallpaperPresets : wallpaperPresets).map((wp) => (
+                  <button
+                    key={wp.id}
+                    onClick={() => {
+                      setActiveWp(wp.id);
+                      if (settings.background === "midnight") {
+                        setSelectedMidnightWallpaper(wp.id);
+                      } else {
+                        setSelectedWallpaper(wp.id);
+                      }
+                      setIsDirty(true);
+                      // If custom bg is NOT active, switch wallpaper normally
+                      if (!customBgActive) {
+                        localStorage.setItem('customBgActive', 'false');
+                        window.dispatchEvent(new Event('customBgToggle'));
+                      }
+                    }}
+                    className="relative rounded-lg overflow-hidden border transition-all duration-200"
+                    style={{
+                      aspectRatio: "1",
+                      borderColor: activeWp === wp.id ? "hsl(var(--primary))" : "transparent",
+                      boxShadow: activeWp === wp.id ? "0 0 10px hsl(var(--glow-primary) / 0.35)" : "none",
+                    }}
+                  >
+                    {wp.backgroundImage ? (
+                      <div className="absolute inset-0" style={{ backgroundImage: `url(${wp.backgroundImage})`, backgroundSize: wp.id === "pearl-dusk" ? "300%" : "500%", backgroundPosition: "center" }} />
+                    ) : (
+                      <>
+                        <div className="absolute inset-0" style={{ background: wp.base }} />
+                        {wp.layers?.slice(0, 1).map((layer, i) => (
+                          <div key={i} className="absolute inset-0" style={{ background: layer.bg }} />
+                        ))}
+                      </>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 text-[9px] font-semibold text-white leading-tight" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.7))" }}>
+                      {wp.name}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Custom image upload */}
             <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
               <p className="text-xs text-muted-foreground">Custom background (image or animated GIF)</p>
 
               {customBgUrl && (
-                <div className="relative rounded-xl overflow-hidden">
-                  <img
-                    src={customBgUrl}
-                    alt="Custom background preview"
-                    className={`w-full h-24 object-cover transition-all ${
-                      settings.background === "custom" ? "opacity-100 ring-2 ring-primary" : "opacity-50"
-                    }`}
-                  />
-                  <div className="absolute top-2 right-2 flex gap-1">
-                    {settings.background !== "custom" && (
-                      <button
-                        onClick={() => updateSetting("background", "custom")}
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium glass text-primary"
-                      >
-                        Apply
-                      </button>
-                    )}
+                <div
+                  className={`relative rounded-xl overflow-hidden transition-all h-24 ${
+                    customBgActive ? "" : "opacity-50"
+                  }`}
+                  style={{
+                    backgroundImage: `url(${customBgUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                >
+                  <div className="absolute top-2 right-2" style={{ zIndex: 10 }}>
                     <button
                       onClick={handleRemoveCustomBg}
-                      className="p-1.5 rounded-lg bg-destructive/30 hover:bg-destructive/60 transition-colors"
+                      className="flex items-center justify-center w-6 h-6 rounded-lg bg-red-600/60 hover:bg-red-600/75 transition-colors"
+                      style={{ color: '#ffffff' }}
                     >
-                      <X size={12} className="text-white" />
+                      <X size={12} color="#ffffff" />
                     </button>
                   </div>
-                  {settings.background === "custom" && (
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-lg glass text-[10px] text-primary font-medium">
-                      Active
-                    </div>
-                  )}
+                  <button
+                    className={`absolute bottom-2 left-2 px-2.5 py-0.5 rounded-lg text-[10px] font-semibold transition-colors ${
+                      customBgActive
+                        ? "bg-green-600/60 hover:bg-green-600/80"
+                        : "bg-secondary/60 hover:bg-secondary/80"
+                    }`}
+                    style={{ color: '#ffffff', zIndex: 10 }}
+                    onClick={() => {
+                      const next = !customBgActive;
+                      setCustomBgActive(next);
+                      localStorage.setItem('customBgActive', next ? 'true' : 'false');
+                      window.dispatchEvent(new Event('customBgToggle'));
+                      setIsDirty(true);
+                    }}
+                  >
+                    {customBgActive ? 'Active' : 'Deactivated'}
+                  </button>
                 </div>
               )}
 
@@ -466,10 +537,10 @@ const Customize = () => {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-3 rounded-xl glass border border-dashed border-border/70 flex items-center justify-center gap-2 hover:border-primary/50 transition-colors"
+                className="w-full py-3 rounded-xl bg-secondary/50 border border-border/70 flex items-center justify-center gap-2 hover:bg-secondary/70 transition-colors"
               >
-                <Upload size={15} className="text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+                <Upload size={15} className="text-white" />
+                <span className="text-xs text-white font-medium">
                   {customBgUrl ? "Replace image / GIF" : "Upload image or GIF"}
                 </span>
               </motion.button>
@@ -825,33 +896,54 @@ const Customize = () => {
               </div>
               <ChevronRight size={14} className="text-muted-foreground shrink-0" />
             </button>
+
+            {/* Reset Settings */}
+            <button
+              onClick={handleReset}
+              className="w-full flex items-center gap-3 p-3 rounded-xl glass hover:bg-white/5 transition-colors text-left"
+            >
+              <RotateCcw size={18} className="text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">Reset Settings</p>
+                <p className="text-xs text-muted-foreground">Restores tone, theme, background &amp; accessibility to defaults</p>
+              </div>
+              <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+            </button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Bottom action buttons */}
-      <div className="sticky bottom-16 px-5 pb-4 pt-2 glass border-t border-border/50">
+      {/* Bottom action buttons — kept for reference, removed from view
+      <div className="sticky bottom-16 px-5 pb-4 pt-2 border-t border-border/50" style={{ background: "hsl(var(--background) / 0.95)" }}>
         <div className="flex gap-2 max-w-lg mx-auto">
           <Button
             onClick={handleReset}
             variant="outline"
             className="flex-1"
             size="sm"
+            style={{
+              borderColor: "hsl(var(--border))",
+              color: "hsl(var(--foreground))",
+              background: "hsl(var(--surface-glass) / 0.5)",
+            }}
           >
             <RotateCcw size={16} className="mr-2" />
             Reset
           </Button>
           <Button
             onClick={handleSave}
-            disabled={(!isDirty && saveStatus === "idle") || saveStatus === "success"}
-            className={`flex-1 transition-all duration-300 ${
-              saveStatus === "success"
-                ? "!bg-green-500 hover:!bg-green-500 !text-white"
-                : saveStatus === "error"
-                ? "!bg-destructive hover:!bg-destructive"
-                : ""
-            }`}
+            disabled={!isDirty && saveStatus === "idle"}
+            className="flex-1 transition-all duration-300 font-semibold"
             size="sm"
+            style={
+              saveStatus === "success"
+                ? { background: "hsl(142, 72%, 55%)", color: "white", border: "none", opacity: 1, boxShadow: "0 0 12px hsla(142, 80%, 55%, 0.4)" }
+                : saveStatus === "error"
+                ? { background: "hsl(0, 70%, 50%)", color: "#fff", border: "none" }
+                : isDirty
+                ? { background: "hsl(var(--primary))", color: "#fff", border: "none", boxShadow: "0 0 14px hsl(var(--primary) / 0.45)" }
+                : {}
+            }
           >
             {saveStatus === "success" ? (
               "All good 👍"
@@ -866,6 +958,7 @@ const Customize = () => {
           </Button>
         </div>
       </div>
+      */}
     </div>
   );
 };

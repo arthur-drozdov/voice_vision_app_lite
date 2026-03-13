@@ -25,20 +25,20 @@ export interface GlassContainerProps {
 
 const variantStyles: Record<"dark" | "bright", React.CSSProperties> = {
   dark: {
-    background: "rgba(10, 12, 15, 0.40)",
+    background: "hsl(var(--surface-glass) / 0.45)",
     backdropFilter: "blur(6px)",
     WebkitBackdropFilter: "blur(6px)",
     borderRadius: "10px",
     boxShadow: "0 6px 18px rgba(0, 0, 0, 0.15)",
-    border: "1px solid rgba(255, 255, 255, 0.08)",
+    border: "1px solid hsl(var(--border) / 0.15)",
   },
   bright: {
-    background: "rgba(255, 255, 255, 0.12)",
+    background: "hsl(var(--surface-glass) / 0.25)",
     backdropFilter: "blur(6px)",
     WebkitBackdropFilter: "blur(6px)",
     borderRadius: "8px",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.10)",
-    border: "1px solid rgba(255, 255, 255, 0.12)",
+    border: "1px solid hsl(var(--border) / 0.20)",
   },
 };
 

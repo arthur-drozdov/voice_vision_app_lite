@@ -41,7 +41,8 @@ os.environ.setdefault(
 os.environ.setdefault("LANGSMITH_PROJECT", "Olaph")
 
 from deepagents import create_deep_agent
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+import aiosqlite
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import BaseTool
 from langchain_core.messages import (
@@ -55,10 +56,23 @@ from langchain_core.messages import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("python_bridge")
 
+from pydantic import BaseModel, Field
+
+
+class VisionInput(BaseModel):
+    """Input for the Vision tool — no arguments needed."""
+    pass
+
+
+class SearchInput(BaseModel):
+    """Input for the Search tool."""
+    query: str = Field(description="The search query to look up on the web")
+
 
 class CameraVision(BaseTool):
     name: str = "Vision"
     description: str = "Use this tool to see the most recent frame from the user's camera when they ask you what you see. It returns the image data."
+    args_schema: type = VisionInput
 
     def _run(self) -> list[dict]:
         frame_path = os.path.join(os.getcwd(), "latest_frame.jpg")
@@ -85,18 +99,23 @@ class CameraVision(BaseTool):
 
 class TavilySearch(BaseTool):
     name: str = "Search"
-    description: str = "Use this tool to search the web for current information, news, facts, or any topic that requires up-to-date online information. Returns search results with relevant content and sources."
+    description: str = "Use this tool to search the web for current information, news, facts, weather forecasts, prices, availability, or any topic that requires up-to-date online information. Returns search results with relevant content and sources."
+    args_schema: type = SearchInput
 
     def _run(self, query: str) -> str:
+        import concurrent.futures
         from tavily import TavilyClient
 
         api_key = os.environ.get(
             "TAVILY_API_KEY",
-            "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",
+            "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",
         )
         client = TavilyClient(api_key=api_key)
         try:
-            response = client.search(query=query, max_results=5)
+            # Use a thread with timeout to prevent Tavily from hanging
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(client.search, query=query, max_results=5)
+                response = future.result(timeout=15)  # 15 second timeout
             results = response.get("results", [])
             if not results:
                 return "No search results found."
@@ -111,13 +130,15 @@ class TavilySearch(BaseTool):
                 )
 
             return "\n\n".join(formatted_results)
+        except concurrent.futures.TimeoutError:
+            return "Search timed out after 15 seconds. Please try a more specific query."
         except Exception as e:
             return f"Search error: {e}"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global agent, _base_model
+    global agent, _base_model, _checkpointer
     try:
         # Build ChatOpenAI pointing directly at the custom Qwen-compatible server.
         # OPENAI_API_KEY can be any non-empty string (e.g. "pancakes") — the server
@@ -147,22 +168,39 @@ async def lifespan(app: FastAPI):
         _tools_dict.clear()
         _tools_dict.update({tool.name: tool for tool in tools_list})
 
+        # Persistent SQLite checkpointer — conversations survive backend restarts
+        db_path = os.path.join(os.getcwd(), "data", "conversations.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        _sqlite_conn = await aiosqlite.connect(db_path)
+        _checkpointer = AsyncSqliteSaver(conn=_sqlite_conn)
+        await _checkpointer.setup()
+        logger.info(f"Persistent conversation DB: {db_path}")
+
         agent = create_deep_agent(
             model=_base_model,
             system_prompt=system_prompt,
             tools=tools_list,
-            checkpointer=MemorySaver(),  # enables per-thread conversation memory
+            checkpointer=_checkpointer,
         )
-        logger.info("Agent initialised with create_deep_agent")
+        logger.info("Agent initialised with create_deep_agent (persistent SQLite checkpointer)")
         logger.info(f"Tools registered: {list(_tools_dict.keys())}")
     except Exception as e:
         logger.error(f"Failed to initialize agent: {e}")
         raise
     yield
+    # Cleanup: close the SQLite connection
+    if _checkpointer and hasattr(_checkpointer, 'conn') and _checkpointer.conn:
+        try:
+            await _checkpointer.conn.close()
+            logger.info("SQLite checkpointer closed")
+        except Exception as e:
+            logger.warning(f"Error closing checkpointer: {e}")
 
 
 # Shared model instance — set during lifespan startup, reused for fallback calls
 _base_model = None
+# Persistent checkpointer — set during lifespan startup
+_checkpointer = None
 
 app = FastAPI(lifespan=lifespan)
 
@@ -371,7 +409,9 @@ async def orchestrator_invoke(
         logger.info(f"[ORCHESTRATOR] Iteration {iteration}/{max_iterations}")
 
         try:
-            response = await model.ainvoke(all_messages)
+            # Bind tools to the model so it can generate tool_calls
+            model_with_tools = model.bind_tools(list(tools_dict.values())) if tools_dict else model
+            response = await model_with_tools.ainvoke(all_messages)
         except Exception as e:
             logger.error(f"[ORCHESTRATOR] LLM invoke error: {e}")
             raise
@@ -493,8 +533,28 @@ async def chat_endpoint(websocket: WebSocket):
 
             # Use shared memory if available, fall back to checkpointer
             existing_messages = shared_messages if shared_messages else checkpointer_messages
+
+            # Fallback: If no server-side history, use frontend-sent history
+            # This handles the case where the backend restarted (MemorySaver is in-memory)
+            # or the user loaded a session from chat history
+            frontend_history = payload.get("history", [])
+            if not existing_messages and frontend_history:
+                logger.info(
+                    f"[HISTORY] No server-side history found. Using {len(frontend_history)} "
+                    f"messages from frontend history"
+                )
+                for msg in frontend_history:
+                    role = msg.get("role", "")
+                    text = msg.get("text", "")
+                    if not text:
+                        continue
+                    if role == "user":
+                        existing_messages.append(HumanMessage(content=text))
+                    elif role == "agent":
+                        existing_messages.append(AIMessage(content=text))
+
             logger.info(
-                f"[HISTORY] Using {'shared_memory' if shared_messages else 'checkpointer'} "
+                f"[HISTORY] Using {'shared_memory' if shared_messages else 'checkpointer' if checkpointer_messages else 'frontend_history' if frontend_history else 'none'} "
                 f"with {len(existing_messages)} messages for conversation={conversation_id}, "
                 f"agent={agent_name or 'unknown'}"
             )
@@ -593,7 +653,7 @@ async def chat_endpoint(websocket: WebSocket):
                                 f"(1 user + {len(updated_messages)} AI/tool) to checkpointer"
                             )
                             result = await agent.aupdate_state(
-                                config, {"messages": messages_to_store}
+                                config, {"messages": messages_to_store}, as_node="__end__"
                             )
                             logger.info(
                                 f"[STORE] aupdate_state returned: {type(result)}"
@@ -883,7 +943,11 @@ async def synthesize_with_spark_tts(
                 return np.zeros(0), 24000
 
             if active_ref_audio is None:
-                active_ref_audio, ref_sr = store.get_reference_audio(voice_id)
+                ref_result = store.get_reference_audio(voice_id)
+                if ref_result is None:
+                    logger.error(f"Reference audio file not found for voice {voice_id}")
+                    return np.zeros(0), 24000
+                active_ref_audio, ref_sr = ref_result
             if active_ref_text is None:
                 active_ref_text = voice.reference_text
 
@@ -1254,49 +1318,35 @@ FORMAT_SYSTEM_PROMPTS = {
         "]}]}\n\n"
         "MANDATORY RULES:\n"
         "1. Central node: 2-5 word label summarising the main conversation topic.\n"
-        "2. Create 4-8 CATEGORY branches (Level 1) — one for EVERY major theme or topic area discussed.\n"
+        "2. Create 3-4 CATEGORY branches (Level 1) — one for each major theme discussed.\n"
         "3. Each category label MUST start with a relevant emoji, e.g. '✈️ Flights', '💡 Key Ideas'.\n"
-        "4. Each category MUST have 3-8 children (Level 2) with specific facts, options, or sub-topics.\n"
-        "5. Level 2 nodes may have their own children (Level 3) for supporting details — USE THIS.\n"
-        "6. Level 3 nodes may have children (Level 4) for fine-grained details.\n"
-        "7. Every node MUST have a unique 'id' field (e.g. 'c1', 'c1_2', 'c1_2_3').\n"
-        "8. Category labels: SHORT (2-5 words). Detail labels: INFORMATIVE (3-10 words) "
+        "4. Each category should have 1-3 children (Level 2) with the MOST important facts or sub-topics.\n"
+        "5. Level 2 nodes may have 1-2 children (Level 3) ONLY for crucial supporting details.\n"
+        "6. Every node MUST have a unique 'id' field (e.g. 'c1', 'c1_2', 'c1_2_3').\n"
+        "7. Category labels: SHORT (2-5 words). Detail labels: INFORMATIVE (3-10 words) "
         "— include names, numbers, prices, dates, specifics.\n"
-        "9. Group related ideas under the correct parent — NEVER flatten into a single level.\n"
-        "10. Extract: facts, recommendations, action items, options discussed, decisions made, "
-        "questions raised, examples given, preferences stated.\n\n"
+        "8. Do NOT include empty placeholder nodes — the user can add their own nodes.\n"
+        "9. KEEP IT COMPACT. Focus on the highlights, not exhaustive detail.\n\n"
         "MINIMUM REQUIREMENTS:\n"
-        "- At least 3 top-level categories\n"
-        "- At least 12 total nodes across all levels\n"
-        "- At least 3 levels of depth beyond the root\n"
-        "- Scale with conversation length: short chats → 12-20 nodes, "
-        "medium chats → 20-35 nodes, long/rich chats → 35-50+ nodes\n\n"
+        "- 3-4 top-level categories\n"
+        "- 8-15 total nodes across all levels (keep it concise!)\n"
+        "- 2-3 levels of depth beyond the root\n\n"
         "STRUCTURE EXAMPLE:\n"
         '{"label":"Budapest Trip Planning","id":"root","children":[\n'
         '  {"label":"✈️ Flights","id":"c1","children":[\n'
         '    {"label":"Ryanair £39 one way","id":"c1_1"},\n'
-        '    {"label":"Depart Fri 15 Mar 6am","id":"c1_2"},\n'
-        '    {"label":"Return Sun 17 Mar 8pm","id":"c1_3"}\n'
+        '    {"label":"Depart Fri 15 Mar 6am","id":"c1_2"}\n'
         "  ]},\n"
-        '  {"label":"🏨 Accommodation","id":"c2","children":[\n'
-        '    {"label":"Maverick City Lodge","id":"c2_1","children":[\n'
-        '      {"label":"£35 per night","id":"c2_1_1"},\n'
-        '      {"label":"District VII location","id":"c2_1_2"}\n'
-        "    ]},\n"
-        '    {"label":"3 nights total £105","id":"c2_2"}\n'
+        '  {"label":"🏨 Stay","id":"c2","children":[\n'
+        '    {"label":"Maverick Lodge £35/night","id":"c2_1"},\n'
+        '    {"label":"3 nights = £105","id":"c2_2"}\n'
         "  ]},\n"
         '  {"label":"🎭 Activities","id":"c3","children":[\n'
-        '    {"label":"Széchenyi Thermal Baths","id":"c3_1"},\n'
-        '    {"label":"Ruin bar crawl","id":"c3_2","children":[\n'
-        '      {"label":"Start at Szimpla Kert","id":"c3_2_1"}\n'
-        "    ]},\n"
-        '    {"label":"Parliament guided tour €10","id":"c3_3"},\n'
-        '    {"label":"Danube sunset cruise","id":"c3_4"}\n'
+        '    {"label":"Thermal Baths","id":"c3_1"},\n'
+        '    {"label":"Ruin Bars","id":"c3_2"}\n'
         "  ]},\n"
         '  {"label":"💰 Budget","id":"c4","children":[\n'
-        '    {"label":"Total estimated ~£280","id":"c4_1"},\n'
-        '    {"label":"Food budget £20/day","id":"c4_2"},\n'
-        '    {"label":"Activities budget £40","id":"c4_3"}\n'
+        '    {"label":"Total ~£280","id":"c4_1"}\n'
         "  ]}\n"
         "]}\n\n"
         "Return ONLY the JSON. No other text, no markdown fences."
@@ -1326,19 +1376,34 @@ FORMAT_SYSTEM_PROMPTS = {
         "Return at least 1 item. Return ONLY the JSON, no other text."
     ),
     "todo": (
-        "You are a canvas content generator. The user will give you a conversation transcript. "
-        "Your task: extract ALL action items, tasks, and things to do from the conversation.\n"
+        "You are an intelligent to-do list generator. The user will give you a conversation transcript. "
+        "Your job is to create a COMPREHENSIVE, ACTIONABLE to-do list that helps the user be fully prepared.\n\n"
         "Return ONLY valid JSON in this exact shape:\n"
-        '[{"text":"...","done":false,"priority":"high"|"medium"|"low"}]\n'
+        '[{"text":"...","done":false,"priority":"high"|"medium"|"low"}]\n\n'
+        "YOUR APPROACH:\n"
+        "1. Detect the TOPIC of the conversation (travel, creative project, coding, learning, "
+        "life admin, fitness, event planning, work, finance, etc.).\n"
+        "2. Extract every explicit action item from the conversation.\n"
+        "3. Then use your knowledge to PROACTIVELY ADD practical items someone working on "
+        "this topic would typically need — things they might forget or haven't thought of yet. "
+        "Think like a knowledgeable friend who has done this before.\n"
+        "   Examples of this thinking:\n"
+        "   - Travel → packing, documents, transport, weather prep, bank notification\n"
+        "   - Creative project → references, tool setup, drafts, feedback, publishing plan\n"
+        "   - Coding → repo setup, testing, docs, deployment, code review\n"
+        "   - Learning → resources, schedule, practice exercises, progress tracking\n"
+        "   - Life admin → paperwork, deadlines, contacts, appointments\n"
+        "   Apply the same pattern to ANY topic — use your judgement.\n"
+        "4. Every item must be RELEVANT to the conversation topic. "
+        "Never add travel items to a coding chat or vice versa.\n\n"
         "RULES:\n"
-        "- Extract EVERY task, action item, suggestion, and to-do mentioned — do not limit to just a few.\n"
-        "- Include specific details (names, dates, amounts, links) from the conversation.\n"
-        "- Distribute priorities naturally across all three levels:\n"
-        "  • high = urgent, time-sensitive, critical\n"
+        "- Group related items together logically.\n"
+        "- Use specific details from the conversation (names, dates, amounts).\n"
+        "- Distribute priorities naturally:\n"
+        "  • high = urgent, time-sensitive, or critical\n"
         "  • medium = important but not urgent\n"
-        "  • low = nice-to-have, future consideration, optional\n"
-        "- Aim for a realistic mix — not everything is high priority.\n"
-        "- If the conversation has many action points, return them all (10, 15, 20+ is fine).\n"
+        "  • low = nice-to-have, optional extras\n"
+        "- Aim for 15-30 items for detailed conversations, fewer for simple ones.\n"
         "Return ONLY the JSON, no other text."
     ),
     "custom": (
@@ -1354,6 +1419,7 @@ class GenerateCanvasPayload(BaseModel):
     format: str  # "mindmap"|"summary"|"calendar"|"todo"|"custom"
     character_name: str
     custom_description: str | None = None
+    existing_structured_data: dict | None = None
 
 
 @app.post("/generate-canvas")
@@ -1383,11 +1449,59 @@ async def generate_canvas(payload: GenerateCanvasPayload):
             status_code=400, detail="No conversation content to process"
         )
 
-    # Build system prompt
+    # Build system prompt — use incremental prompt if existing data provided
     system_content = FORMAT_SYSTEM_PROMPTS[fmt]
+
+    # For mindmaps: dynamically scale detail level based on conversation richness
+    if fmt == "mindmap" and not payload.existing_structured_data:
+        word_count = len(transcript.split())
+        msg_count = len(payload.messages)
+        if word_count > 1000 or msg_count > 15:
+            # Rich, detailed conversation — capture everything
+            system_content = system_content.replace(
+                "8-15 total nodes across all levels (keep it concise!)",
+                "20-35 total nodes across all levels — this is a detailed conversation, capture ALL specifics"
+            ).replace(
+                "3-4 CATEGORY branches",
+                "4-6 CATEGORY branches"
+            ).replace(
+                "1-3 children (Level 2)",
+                "2-5 children (Level 2)"
+            )
+        elif word_count > 400 or msg_count > 8:
+            # Medium conversation
+            system_content = system_content.replace(
+                "8-15 total nodes across all levels (keep it concise!)",
+                "12-20 total nodes across all levels — include key specifics"
+            )
     if fmt == "custom" and payload.custom_description:
         system_content += (
             f"\n\nFormat description from user: {payload.custom_description}"
+        )
+
+    # INCREMENTAL MODE: if existing structured data is provided, tell the LLM
+    # to ADD to the existing structure rather than rebuild from scratch
+    existing_json = None
+    if payload.existing_structured_data and fmt == "mindmap":
+        import json as _json2
+        # Extract the root mindmap JSON from the structured wrapper
+        existing_root = payload.existing_structured_data.get("root", payload.existing_structured_data)
+        existing_json = _json2.dumps(existing_root, ensure_ascii=False)
+        system_content = (
+            "You are an INCREMENTAL mind-map updater. You have an EXISTING mind map (JSON) "
+            "and a NEW conversation transcript. Your job is to MERGE new information into "
+            "the existing map.\n\n"
+            "CRITICAL RULES:\n"
+            "1. KEEP every existing node exactly as-is — same id, same label, same position. "
+            "Do NOT remove, rename, or reorganise existing nodes.\n"
+            "2. ADD new nodes for new information from the conversation. Place them under "
+            "the most relevant existing category, or create a new category if needed.\n"
+            "3. New node IDs must be unique and not clash with existing ones (e.g. c5, c5_1).\n"
+            "4. Keep category labels starting with a relevant emoji.\n"
+            "5. Return the COMPLETE updated JSON (existing + new nodes merged together).\n"
+            "6. Return ONLY valid JSON, no other text.\n\n"
+            f"EXISTING MIND MAP:\n{existing_json}\n\n"
+            "Now integrate the NEW conversation content below into this existing map."
         )
 
     user_content = f"Here is the conversation transcript:\n\n{transcript}"
@@ -1405,13 +1519,29 @@ async def generate_canvas(payload: GenerateCanvasPayload):
         structured = None
         if fmt in ("mindmap", "todo", "calendar"):
             try:
-                # Strip code fences if model wrapped the JSON
                 clean = content
+                # Strip <think>...</think> blocks (Qwen reasoning model output)
+                import re as _re
+                clean = _re.sub(r"<think>.*?</think>", "", clean, flags=_re.DOTALL).strip()
+                # Strip code fences if model wrapped the JSON
                 if clean.startswith("```"):
                     clean = "\n".join(clean.split("\n")[1:])
                 if clean.endswith("```"):
                     clean = "\n".join(clean.split("\n")[:-1])
-                parsed = _json.loads(clean.strip())
+                clean = clean.strip()
+                # Try direct parse first
+                try:
+                    parsed = _json.loads(clean)
+                except _json.JSONDecodeError:
+                    # Extract the first JSON array [...] or object {...} from the text
+                    arr_match = _re.search(r"\[[\s\S]*\]", clean)
+                    obj_match = _re.search(r"\{[\s\S]*\}", clean)
+                    if fmt in ("todo", "calendar") and arr_match:
+                        parsed = _json.loads(arr_match.group())
+                    elif fmt == "mindmap" and obj_match:
+                        parsed = _json.loads(obj_match.group())
+                    else:
+                        raise ValueError("No JSON found in response")
                 if fmt == "mindmap":
                     # API returns {"title":"...", "children":[...]} but frontend expects "label"
                     if "title" in parsed and "label" not in parsed:

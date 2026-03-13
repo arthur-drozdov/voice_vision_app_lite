@@ -19,6 +19,16 @@ import { applyTheme } from "@/lib/themes";
 import { isSetupComplete } from "@/lib/userProfileStore";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
+// Apply theme SYNCHRONOUSLY at module load — before any React renders.
+// This ensures CSS vars are set before DefaultBg's useEffect applies wallpaper overrides on top.
+try {
+  const saved = localStorage.getItem("customize-settings");
+  if (saved) {
+    const { background } = JSON.parse(saved);
+    if (background) applyTheme(background);
+  }
+} catch { /* ignore */ }
+
 const queryClient = new QueryClient();
 
 const pageVariants = {
@@ -64,18 +74,6 @@ const AnimatedRoutes = () => {
 
 const App = () => {
   const [showWelcome, setShowWelcome] = useState(!isSetupComplete());
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("customize-settings");
-      if (saved) {
-        const { background } = JSON.parse(saved);
-        if (background) applyTheme(background);
-      }
-    } catch {
-      // ignore malformed localStorage
-    }
-  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

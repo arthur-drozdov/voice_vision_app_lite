@@ -117,8 +117,8 @@ export function mergeIntoBoard(id: string, newMessages: CanvasMessage[]): void {
       ...b,
       messages: [...b.messages, ...newMessages],
       generationStatus: "pending" as GenerationStatus,
-      generatedContent: undefined,
-      structuredData: undefined,
+      // KEEP existing structuredData & generatedContent so the backend
+      // can use them as a base for incremental updates
     };
   });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(boards));

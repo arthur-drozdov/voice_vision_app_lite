@@ -31,25 +31,68 @@ import FocusButton from "@/components/FocusButton";
 
 // Branch colours that cycle for top-level branches
 const BRANCH_COLOURS = [
-  { accent: "from-primary to-primary/60", bg: "bg-primary/8", border: "border-primary/30", text: "text-primary" },
-  { accent: "from-violet-400 to-violet-400/60", bg: "bg-violet-400/8", border: "border-violet-400/30", text: "text-violet-300" },
-  { accent: "from-amber-400 to-amber-400/60", bg: "bg-amber-400/8", border: "border-amber-400/30", text: "text-amber-300" },
-  { accent: "from-rose-400 to-rose-400/60", bg: "bg-rose-400/8", border: "border-rose-400/30", text: "text-rose-300" },
-  { accent: "from-emerald-400 to-emerald-400/60", bg: "bg-emerald-400/8", border: "border-emerald-400/30", text: "text-emerald-300" },
-  { accent: "from-sky-400 to-sky-400/60", bg: "bg-sky-400/8", border: "border-sky-400/30", text: "text-sky-300" },
+  { accent: "from-primary to-primary/60", bg: "bg-primary/90", border: "border-primary/80", text: "text-primary-foreground" },
+  { accent: "from-violet-400 to-violet-400/60", bg: "bg-violet-400/90", border: "border-violet-400/80", text: "text-white" },
+  { accent: "from-amber-400 to-amber-400/60", bg: "bg-amber-400/90", border: "border-amber-400/80", text: "text-amber-950" },
+  { accent: "from-rose-400 to-rose-400/60", bg: "bg-rose-400/90", border: "border-rose-400/80", text: "text-white" },
+  { accent: "from-emerald-400 to-emerald-400/60", bg: "bg-emerald-400/90", border: "border-emerald-400/80", text: "text-emerald-950" },
+  { accent: "from-sky-400 to-sky-400/60", bg: "bg-sky-400/90", border: "border-sky-400/80", text: "text-sky-950" },
 ];
 
 // Helper: the API may return "title" or "label" depending on version
 const getNodeLabel = (n: any): string => n.label || n.title || "";
+
+/** Generate a human-readable preview for a canvas board (not raw JSON) */
+function getBoardPreview(board: CanvasBoard): string {
+  const sd = board.structuredData as any;
+  if (sd) {
+    if (sd.type === "mindmap" && sd.root) {
+      const cats = (sd.root.children || []).map((c: any) => getNodeLabel(c)).filter(Boolean);
+      return cats.length > 0 ? cats.join(" · ") : "Mind map";
+    }
+    if (sd.type === "todo" && Array.isArray(sd.items)) {
+      const total = sd.items.length;
+      const done = sd.items.filter((t: any) => t.done).length;
+      const high = sd.items.filter((t: any) => t.priority === "high" && !t.done).length;
+      const parts: string[] = [];
+      parts.push(`${done}/${total} done`);
+      if (high > 0) parts.push(`🔴 ${high} high priority`);
+      // Show first 2 undone tasks as preview
+      const undone = sd.items.filter((t: any) => !t.done).slice(0, 2).map((t: any) => `☐ ${t.text}`);
+      if (undone.length > 0) parts.push(undone.join(" · "));
+      return parts.join(" — ");
+    }
+    if (sd.type === "calendar" && Array.isArray(sd.events)) {
+      const previews = sd.events.slice(0, 3).map((e: any) => {
+        const d = e.date ? `📅 ${e.date}` : "";
+        return d ? `${d} ${e.title}` : `📅 ${e.title}`;
+      });
+      const more = sd.events.length > 3 ? ` +${sd.events.length - 3} more` : "";
+      return previews.join(" · ") + more;
+    }
+  }
+  // For summary/custom, use generatedContent (markdown, not JSON)
+  if (board.generatedContent) {
+    // Extract first meaningful line, strip markdown formatting
+    const lines = board.generatedContent
+      .replace(/<think>[\s\S]*?<\/think>/g, "")
+      .split("\n")
+      .map(l => l.replace(/^#+\s*/g, "").replace(/\*\*/g, "").replace(/[*_~`]/g, "").trim())
+      .filter(l => l.length > 10 && !l.startsWith("{") && !l.startsWith("["));
+    const first = lines[0] ?? "";
+    return first.slice(0, 120) + (first.length > 120 ? "…" : "");
+  }
+  return "";
+}
 
 // Sub-node: renders children as compact pills inside a branch
 const MindmapLeaf = ({ node, colour }: { node: MindmapNode; colour: typeof BRANCH_COLOURS[0] }) => (
   <div className="space-y-1.5">
     <p className="text-xs font-medium text-foreground leading-snug">{getNodeLabel(node)}</p>
     {node.children && node.children.length > 0 && (
-      <div className={`pl-3 border-l-2 ${colour.border} space-y-1`}>
+      <div className={`pl-3 border-l-2 ${colour.border} space-y-1.5`}>
         {node.children.map((child, i) => (
-          <p key={i} className="text-[11px] text-foreground/60 leading-snug">{getNodeLabel(child)}</p>
+          <p key={i} className="text-[11px] font-normal text-foreground/90 leading-snug">{getNodeLabel(child)}</p>
         ))}
       </div>
     )}
@@ -60,15 +103,15 @@ const MindmapNodeView = ({ node }: { node: MindmapNode }) => {
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Root title */}
-      <GlassContainer variant="dark" size="sm" className="text-center">
-        <p className="text-sm font-bold text-foreground">{getNodeLabel(node)}</p>
+      <GlassContainer variant="dark" size="lg" className="text-center py-4">
+        <p className="text-lg font-extrabold text-foreground tracking-tight">{getNodeLabel(node)}</p>
       </GlassContainer>
 
       {/* Branches grid */}
       {hasChildren && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           {node.children!.map((branch, i) => {
             const colour = BRANCH_COLOURS[i % BRANCH_COLOURS.length];
             return (
@@ -81,12 +124,12 @@ const MindmapNodeView = ({ node }: { node: MindmapNode }) => {
               >
                 {/* Accent bar + branch label */}
                 <div className="flex items-stretch">
-                  <div className={`w-1.5 bg-gradient-to-b ${colour.accent} shrink-0`} />
-                  <div className="p-3 flex-1 space-y-2">
-                    <p className={`text-xs font-bold ${colour.text} uppercase tracking-wide leading-snug`}>{getNodeLabel(branch)}</p>
+                  <div className={`w-2.5 bg-gradient-to-b ${colour.accent} shrink-0`} />
+                  <div className="p-4 flex-1 space-y-3">
+                    <p className={`text-sm font-semibold ${colour.text} uppercase tracking-wide leading-snug`}>{getNodeLabel(branch)}</p>
                     {/* Sub-nodes */}
                     {branch.children && branch.children.length > 0 && (
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         {branch.children.map((child, j) => (
                           <MindmapLeaf key={j} node={child} colour={colour} />
                         ))}
@@ -1145,7 +1188,7 @@ const DiagramCanvas = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full page-canvas">
       {/* Header */}
       <header className="px-5 pt-12 pb-3 page-header">
         <div className="flex items-start justify-between">
@@ -1248,12 +1291,14 @@ const DiagramCanvas = () => {
                               </>
                             )}
                           </div>
-                          {board.generatedContent && !isGenerating && (
-                            <p className="text-xs text-foreground/70 mt-1.5 line-clamp-2 leading-relaxed">
-                              {board.generatedContent.slice(0, 90)}
-                              {board.generatedContent.length > 90 ? "…" : ""}
-                            </p>
-                          )}
+                          {!isGenerating && (() => {
+                            const preview = getBoardPreview(board);
+                            return preview ? (
+                              <p className="text-xs text-foreground/70 mt-1.5 line-clamp-2 leading-relaxed">
+                                {preview}
+                              </p>
+                            ) : null;
+                          })()}
                         </div>
                         <button
                           onClick={(e) => handleDeleteBoard(board.id, e)}

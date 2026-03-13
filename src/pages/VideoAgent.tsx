@@ -26,7 +26,7 @@ const VideoAgent = () => {
 
   const [isActive, setIsActive] = useState(false);
   const [frontCamera, setFrontCamera] = useState(true);
-  const [selectedChar, setSelectedChar] = useState("kai");
+  const [selectedChar, setSelectedChar] = useState("noe");
   const [showCharSelect, setShowCharSelect] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [audioStatus, setAudioStatus] = useState<LLMRTCConnectionStatus>("disconnected");
@@ -362,7 +362,7 @@ const VideoAgent = () => {
 
   // ─── Active video UI ──────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full page-video">
       <header className="flex items-center justify-between px-5 pt-12 pb-4 page-header">
         <div className="flex items-center gap-3">
           <button onClick={() => setShowCharSelect(true)} className="text-2xl">
@@ -409,9 +409,64 @@ const VideoAgent = () => {
         <div className="relative w-full h-full rounded-2xl glass overflow-hidden flex items-center justify-center min-h-[300px]">
           {isActive ? (
             <>
-              <div className={`absolute inset-0 bg-gradient-to-br ${char.bgClass} opacity-30`} />
+              {/* Character-specific radial glow background */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle at 50% 40%, ${char.color}25 0%, transparent 55%), hsl(var(--background))`,
+                }}
+              />
+
+              {/* Cosmic floating particles (idle) */}
+              {!isTTSActive && (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+                  {[...Array(5)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="absolute rounded-full"
+                      style={{
+                        width: `${3 + Math.random() * 3}px`,
+                        height: `${3 + Math.random() * 3}px`,
+                        left: `${15 + i * 17}%`,
+                        bottom: `${10 + i * 12}%`,
+                        background: `hsla(38, 75%, 62%, ${0.06 + Math.random() * 0.06})`,
+                        animation: `vv-float-particle ${14 + i * 2}s ease-in-out infinite ${i * 2}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
 
               <div className="relative flex flex-col items-center gap-4 z-10">
+                {/* 3 animated rings during talking — teal, lavender, gold */}
+                {isTTSActive && (
+                  <>
+                    {[
+                      { color: "hsl(172, 88%, 50%)", delay: 0 },
+                      { color: "hsl(270, 55%, 68%)", delay: 0.7 },
+                      { color: "hsla(38, 75%, 62%, 0.4)", delay: 1.4 },
+                    ].map((ring, i) => (
+                      <motion.div
+                        key={`ring-${i}`}
+                        className="absolute rounded-full pointer-events-none"
+                        style={{
+                          width: "13rem",
+                          height: "13rem",
+                          border: `2px solid ${ring.color}`,
+                        }}
+                        initial={{ scale: 1, opacity: 0.6 }}
+                        animate={{ scale: 1.8, opacity: 0 }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          delay: ring.delay,
+                          ease: "easeOut",
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+
                 <MoodRing
                   mood={deriveVideoMood({ isBarging, isTTSActive, isUserSpeaking, isActive })}
                   charColor={char.color}
@@ -419,7 +474,10 @@ const VideoAgent = () => {
                 >
                   <div
                     className="w-48 h-48 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: `${char.color}20` }}
+                    style={{
+                      backgroundColor: `${char.color}20`,
+                      boxShadow: `0 0 40px ${char.color}30, 0 0 80px ${char.color}15`,
+                    }}
                   >
                     <span className="text-8xl">{char.emoji}</span>
                   </div>

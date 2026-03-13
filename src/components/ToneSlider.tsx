@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock } from "lucide-react";
+import type { UserMood } from "@/lib/moodDetector";
 
 /**
  * Empathic Tone Engine
@@ -8,111 +9,42 @@ import { Lock, Unlock } from "lucide-react";
  * A dual-mode tone control that lives inside the chat input area.
  *
  * AUTO MODE (default):
- *   The orb reads the user's latest message for emotional cues and
- *   gently suggests a matching tone via colour shifts + tooltip.
- *   The system prompt is adjusted to mirror the detected mood.
+ *   Reads the `detectedMood` prop (from the unified moodDetector)
+ *   and adjusts slider position, orb colour, and tooltip to match.
+ *   The AI system prompt receives the same mood, so visuals and
+ *   AI behaviour are always in sync.
  *
  * MANUAL MODE (user locks the slider):
  *   Auto-sensing pauses. The user's chosen slider position sets
- *   the tone directly. The orb still shows the active colour.
+ *   the tone directly.
  *
  * Priority: user intent always overrides algorithmic suggestion.
  */
 
-/* ─── Sentiment analysis (modular — swap with real API later) ─────────────── */
+/* ─── UserMood → visual config mapping ────────────────────────────────────── */
 
-export type DetectedMood =
-  | "neutral"
-  | "excited"
-  | "frustrated"
-  | "sad"
-  | "urgent"
-  | "curious"
-  | "playful";
-
-interface SentimentResult {
-  mood: DetectedMood;
-  confidence: number; // 0–1
-  suggestion: string; // Gentle tooltip text
-  sliderTarget: number; // Where the slider should move (0–100)
+interface MoodVisual {
+  sliderTarget: number;
+  suggestion: string;
+  emoji: string;
 }
 
-const MOOD_KEYWORDS: Record<DetectedMood, string[]> = {
-  excited: [
-    "amazing", "love", "fantastic", "brilliant", "awesome", "incredible",
-    "perfect", "great", "wonderful", "wow", "yes!", "let's go", "can't wait",
-    "so good", "thrilled", "delighted", "happy", "celebrate",
-  ],
-  frustrated: [
-    "not working", "broken", "doesn't work", "can't", "won't", "bug",
-    "error", "wrong", "frustrated", "annoying", "stuck", "help me",
-    "why is", "still not", "ugh", "again", "failing", "impossible",
-  ],
-  sad: [
-    "sad", "upset", "down", "lonely", "miss", "lost", "cry", "depressed",
-    "anxious", "worried", "scared", "overwhelmed", "exhausted", "tired",
-    "struggling", "hard time", "difficult", "hurting",
-  ],
-  urgent: [
-    "asap", "urgent", "now", "quickly", "deadline", "hurry", "rush",
-    "immediately", "critical", "emergency", "time sensitive", "need this fast",
-  ],
-  curious: [
-    "how does", "what if", "why", "could you explain", "wondering",
-    "curious", "tell me more", "interesting", "how come", "what about",
-  ],
-  playful: [
-    "haha", "lol", "funny", "joke", "silly", "goofy", "fun", "play",
-    "game", "imagine", "dream", "wild", "crazy idea", "what if we",
-  ],
-  neutral: [],
+const MOOD_VISUALS: Record<UserMood, MoodVisual> = {
+  happy:      { sliderTarget: 70, suggestion: "Matching your good vibes ✨",     emoji: "😊" },
+  stressed:   { sliderTarget: 20, suggestion: "Keeping it calm & clear 🧘",       emoji: "😰" },
+  sad:        { sliderTarget: 30, suggestion: "Taking it gently 💙",              emoji: "🫂" },
+  curious:    { sliderTarget: 60, suggestion: "Going in-depth for you 🔍",        emoji: "🤔" },
+  frustrated: { sliderTarget: 15, suggestion: "Focused & solution-ready 🎯",      emoji: "😤" },
+  excited:    { sliderTarget: 85, suggestion: "Let's gooo! 🔥",                   emoji: "🤩" },
+  neutral:    { sliderTarget: 50, suggestion: "",                                  emoji: "😌" },
 };
-
-const MOOD_CONFIG: Record<DetectedMood, { suggestion: string; sliderTarget: number }> = {
-  neutral:    { suggestion: "",                                          sliderTarget: 50 },
-  excited:    { suggestion: "Matching your energy ✨",                   sliderTarget: 80 },
-  frustrated: { suggestion: "Switching to focused mode 🎯",             sliderTarget: 20 },
-  sad:        { suggestion: "Taking it gently 💙",                       sliderTarget: 30 },
-  urgent:     { suggestion: "Keeping it quick and focused ⚡",           sliderTarget: 10 },
-  curious:    { suggestion: "Going in-depth for you 🔍",                sliderTarget: 60 },
-  playful:    { suggestion: "Let's have some fun 🎭",                   sliderTarget: 90 },
-};
-
-/** Analyse a message for emotional cues. Modular — replace body with API call. */
-export function analyseSentiment(text: string): SentimentResult {
-  const lower = text.toLowerCase();
-  let bestMood: DetectedMood = "neutral";
-  let bestScore = 0;
-
-  for (const [mood, keywords] of Object.entries(MOOD_KEYWORDS) as [DetectedMood, string[]][]) {
-    if (mood === "neutral") continue;
-    const hits = keywords.filter((kw) => lower.includes(kw)).length;
-    const score = hits / keywords.length;
-    if (score > bestScore) {
-      bestScore = score;
-      bestMood = mood;
-    }
-  }
-
-  // Require at least one keyword match
-  if (bestScore === 0) bestMood = "neutral";
-
-  const config = MOOD_CONFIG[bestMood];
-  return {
-    mood: bestMood,
-    confidence: Math.min(bestScore * 5, 1), // scale up for low keyword counts
-    suggestion: config.suggestion,
-    sliderTarget: config.sliderTarget,
-  };
-}
 
 /* ─── Tone spectrum (visual) ──────────────────────────────────────────────── */
 const TONE_LABELS = ["Focused", "Balanced", "Friendly", "Playful", "Whimsical"];
 
-/** Hue: 170 teal → 320 pink/magenta (avoids dark blue at the focused end) */
+/** Hue: 170 teal → 320 pink/magenta */
 const valueToHue = (v: number) => 170 + (v / 100) * 150;
 const valueToSat = (v: number) => 65 + (v / 100) * 25;
-/** Lightness: starts at 55% (readable teal) → 65% (bright pink) */
 const valueToLight = (v: number) => 55 + (v / 100) * 10;
 
 const toneColor = (v: number) =>
@@ -126,31 +58,28 @@ const toneLabel = (v: number): string => {
   return TONE_LABELS[idx];
 };
 
-const toneEmoji = (v: number): string => {
-  if (v < 15) return "🎯";  // Focused / urgent
-  if (v < 30) return "🧊";  // Serious
-  if (v < 50) return "🤔";  // Balanced
-  if (v < 70) return "😊";  // Friendly
-  if (v < 85) return "😄";  // Playful
-  return "🎭";               // Whimsical
+const toneEmoji = (v: number, moodEmoji?: string): string => {
+  if (moodEmoji) return moodEmoji;
+  if (v < 15) return "🎯";
+  if (v < 30) return "🧊";
+  if (v < 50) return "🤔";
+  if (v < 70) return "😊";
+  if (v < 85) return "😄";
+  return "🎭";
 };
 
-/* ─── Storage (session-scoped — lock resets each new conversation) ─────── */
+/* ─── Storage (session-scoped) ────────────────────────────────────────────── */
 const STORAGE_KEY = "ai-tone-slider";
 
 interface ToneState {
   value: number;
-  locked: boolean;         // Manual override active (per-session only)
-  autoMood: DetectedMood;  // Last auto-detected mood
+  locked: boolean;
+  autoMood: UserMood;
 }
 
 /** Map the customize tab's tone setting to a slider starting value */
 const CUSTOMISE_TONE_TO_SLIDER: Record<string, number> = {
-  direct: 10,
-  professional: 20,
-  warm: 50,
-  friendly: 60,
-  casual: 70,
+  direct: 10, professional: 20, warm: 50, friendly: 60, casual: 70,
 };
 
 const getInitialValue = (): number => {
@@ -163,7 +92,6 @@ const getInitialValue = (): number => {
 
 const loadTone = (): ToneState => {
   try {
-    // Session-scoped: use sessionStorage so lock resets per conversation
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
@@ -177,19 +105,20 @@ const saveTone = (state: ToneState) => {
 /* ─── Component ───────────────────────────────────────────────────────────── */
 
 interface ToneSliderProps {
-  /** Latest user message — feed this to enable auto-sensing */
-  lastUserMessage?: string;
+  /** Detected user mood from the unified moodDetector */
+  detectedMood?: UserMood;
   /** Callback when tone changes */
   onChange?: (value: number) => void;
 }
 
-const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
+const ToneSlider = ({ detectedMood = "neutral", onChange }: ToneSliderProps) => {
   const [expanded, setExpanded] = useState(false);
   const [tone, setTone] = useState<ToneState>(loadTone);
   const [suggestion, setSuggestion] = useState("");
   const [showSuggestion, setShowSuggestion] = useState(false);
 
   const { value, locked, autoMood } = tone;
+  const visual = MOOD_VISUALS[autoMood] || MOOD_VISUALS.neutral;
 
   // Persist and notify on change
   useEffect(() => {
@@ -197,45 +126,43 @@ const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
     onChange?.(tone.value);
   }, [tone]);
 
-  // ── Auto-sense mood from user's latest message ───────────────────────────
+  // ── Auto-sense: react to unified detectedMood prop ───────────────────────
   useEffect(() => {
-    if (!lastUserMessage || locked) return; // Respect manual override
+    if (locked) return; // Respect manual override
+    if (detectedMood === "neutral" || detectedMood === autoMood) return;
 
-    const result = analyseSentiment(lastUserMessage);
-    if (result.mood === "neutral" || result.confidence < 0.05) return;
+    const moodVisual = MOOD_VISUALS[detectedMood];
 
-    // Smoothly suggest the new tone
+    // Update slider position and mood state
     setTone((prev) => ({
       ...prev,
-      value: result.sliderTarget,
-      autoMood: result.mood,
+      value: moodVisual.sliderTarget,
+      autoMood: detectedMood,
     }));
 
-    // Show gentle suggestion tooltip
-    setSuggestion(result.suggestion);
-    setShowSuggestion(true);
-    const timer = setTimeout(() => setShowSuggestion(false), 4000);
-    return () => clearTimeout(timer);
-  }, [lastUserMessage, locked]);
+    // Show suggestion tooltip
+    if (moodVisual.suggestion) {
+      setSuggestion(moodVisual.suggestion);
+      setShowSuggestion(true);
+      const timer = setTimeout(() => setShowSuggestion(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [detectedMood, locked]);
 
   const updateValue = useCallback((v: number) => {
-    // Manual slider drag — update value but don't auto-lock
     setTone((prev) => ({ ...prev, value: v }));
   }, []);
 
   const toggleLock = useCallback(() => {
-    setTone((prev) => {
-      if (prev.locked) {
-        // Unlocking → re-enable auto-sensing
-        return { ...prev, locked: false };
-      }
-      // Locking → keep current position
-      return { ...prev, locked: true };
-    });
+    setTone((prev) => ({
+      ...prev,
+      locked: !prev.locked,
+    }));
   }, []);
 
   const modeLabel = locked ? "Manual" : "Auto";
   const modeColor = locked ? "text-amber-400" : "text-emerald-400";
+  const currentEmoji = toneEmoji(value, locked ? undefined : visual.emoji);
 
   return (
     <div className="relative flex items-center">
@@ -249,19 +176,19 @@ const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
           boxShadow: expanded ? toneGlow(value) : `0 0 6px ${toneColor(value)}60`,
         }}
         transition={{ duration: 0.3 }}
-        title={`Tone: ${toneLabel(value)} (${modeLabel}) — tap to adjust`}
+        title={`Tone: ${toneLabel(value)} (${modeLabel}) — Mood: ${autoMood}`}
       >
         <motion.span
           className="text-sm leading-none"
-          key={toneEmoji(value)}
+          key={currentEmoji}
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
         >
-          {toneEmoji(value)}
+          {currentEmoji}
         </motion.span>
 
-        {/* Pulse ring — skip if reduced motion is on */}
+        {/* Pulse ring */}
         {!document.documentElement.classList.contains("reduce-motion") && (
           <motion.div
             className="absolute inset-0 rounded-full"
@@ -272,12 +199,31 @@ const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
         )}
       </motion.button>
 
-      {/* Always-visible mode label next to orb */}
+      {/* Always-visible mood + mode label */}
       {!expanded && (
-        <span className={`ml-1.5 text-[8px] font-bold tracking-wider uppercase ${modeColor}`}>
-          {locked ? "Locked" : "Auto"}
-        </span>
+        <div className="ml-1.5 flex flex-col items-start">
+          <span className={`text-[8px] font-bold tracking-wider uppercase ${modeColor}`}>
+            {locked ? "Locked" : "Auto"}
+          </span>
+          {!locked && autoMood !== "neutral" && (
+            <span className="text-[7px] text-foreground/40 capitalize">{autoMood}</span>
+          )}
+        </div>
       )}
+
+      {/* Suggestion toast */}
+      <AnimatePresence>
+        {showSuggestion && suggestion && !expanded && (
+          <motion.div
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -8 }}
+            className="absolute left-12 top-0 glass rounded-lg px-2 py-1 text-[9px] text-foreground/70 whitespace-nowrap"
+          >
+            {suggestion}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Expanded Slider Panel ─── */}
       <AnimatePresence>
@@ -305,6 +251,11 @@ const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
                 <span className={`text-[7px] font-semibold ${modeColor}`}>
                   {modeLabel}
                 </span>
+                {!locked && autoMood !== "neutral" && (
+                  <span className="text-[7px] text-foreground/40 capitalize">
+                    ({autoMood})
+                  </span>
+                )}
               </div>
 
               {/* Slider track */}
@@ -356,3 +307,4 @@ const ToneSlider = ({ lastUserMessage, onChange }: ToneSliderProps) => {
 };
 
 export default ToneSlider;
+

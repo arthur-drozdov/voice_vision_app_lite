@@ -338,7 +338,7 @@ function getTimeAgo(date: Date): string {
 
 const Index = () => {
   const navigate = useNavigate();
-  const [selectedChar, setSelectedChar] = useState("kai");
+  const [selectedChar, setSelectedChar] = useState("noe");
   const [loadedChar, setLoadedChar] = useState<Character | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
 
@@ -459,7 +459,7 @@ const Index = () => {
   ].filter(Boolean) as { label: string; icon: any; path: string; always: boolean }[];
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto page-home">
       {/* Trust & Memory Consent Modal */}
       <TrustMemoryModal
         show={showConsentModal}
@@ -474,13 +474,13 @@ const Index = () => {
           className="flex items-start justify-between"
         >
           <GlassContainer variant="dark" size="sm" className="inline-block">
-            <h1 className="text-2xl font-bold text-foreground">{buildGreeting()}</h1>
+            <h1 className="text-2xl font-bold greeting-shimmer">{buildGreeting()}</h1>
           </GlassContainer>
           <FocusButton />
         </motion.div>
       </header>
 
-      <div className="px-5 pb-32 space-y-6">
+      <div className="px-5 pb-4 space-y-6">
         {/* Daily Spark Engine */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -500,7 +500,7 @@ const Index = () => {
                     {spark.action && (
                       <button
                         onClick={() => navigate("/chat")}
-                        className="mt-2 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                        className="mt-2 text-xs font-semibold text-secondary hover:text-secondary/80 underline transition-colors"
                       >
                         {spark.action} →
                       </button>
@@ -511,6 +511,8 @@ const Index = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        <div className="sparkle-divider" />
 
         {/* Did you know? — rotates every 3 hours */}
         <motion.div
@@ -523,7 +525,7 @@ const Index = () => {
               <div className="flex items-start gap-3">
                 <span className="text-lg shrink-0">{currentFact.emoji}</span>
                 <div>
-                  <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Did you know?</h3>
+                  <h3 className="text-xs font-bold text-secondary uppercase tracking-wider mb-1">Did you know?</h3>
                   <p className="text-xs text-foreground/70 leading-relaxed">{currentFact.text}</p>
                   <p className="text-[9px] text-foreground/30 mt-1.5">{currentFact.category}</p>
                 </div>
@@ -531,6 +533,8 @@ const Index = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        <div className="sparkle-divider" />
 
         {/* Memory Lane Carousel */}
         {memoryLane.length > 0 && (
@@ -541,7 +545,7 @@ const Index = () => {
           >
             <Card className="glass overflow-hidden">
               <CardContent className="p-4">
-                <h2 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-3">
+                <h2 className="text-xs font-bold text-secondary uppercase tracking-wider mb-3">
                   Memory Lane
                 </h2>
                 <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">

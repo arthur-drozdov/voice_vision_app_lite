@@ -141,7 +141,7 @@ const VoiceItem = ({
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isSelected
             ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground"
+            : "bg-secondary/30 text-secondary"
             }`}
         >
           <Volume2 className="h-5 w-5" />
@@ -708,15 +708,14 @@ export function VoiceCloningPanel({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">Voice Cloning</h3>
-          <Badge variant="secondary" className="text-xs">
+          <Badge className="text-xs bg-primary/20 text-white border border-primary/40">
             {selectedVoice || selectedVoiceId ? "Voice Active" : "No Voice"}
           </Badge>
         </div>
 
         <Button
           onClick={() => setOpenDialog(true)}
-          className="w-full"
-          size="sm"
+          className="w-full glass border-secondary/40 text-secondary hover:bg-secondary/10"
           variant="outline"
         >
           <Mic className="h-4 w-4 mr-2" />
@@ -760,7 +759,7 @@ export function VoiceCloningPanel({
             <Volume2 className="h-5 w-5" />
             Voice Cloning
           </span>
-          <Badge variant="secondary">
+          <Badge className="bg-primary/20 text-primary border border-primary/40">
             {selectedVoice || selectedVoiceId ? (
               <>
                 <Check className="h-3 w-3 mr-1" />

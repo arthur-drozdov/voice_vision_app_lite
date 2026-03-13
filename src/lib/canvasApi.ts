@@ -26,6 +26,7 @@ export async function generateCanvasContent(board: CanvasBoard): Promise<void> {
         format: board.format,
         character_name: board.characterName,
         custom_description: board.customDescription ?? null,
+        existing_structured_data: board.structuredData ?? null,
       }),
     });
 

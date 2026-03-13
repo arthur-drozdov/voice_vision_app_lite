@@ -1,4 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { getSelectedWallpaper, getPresetById } from "@/lib/wallpaperPresets";
+import { getSelectedMidnightWallpaper, getMidnightPresetById } from "@/lib/midnightWallpaperPresets";
+import {
+  VioletNebulaOverlay,
+  MoonPhasesOverlay,
+  LavenderMistOverlay,
+  CelestialMapOverlay,
+} from "@/components/MidnightPresetOverlays";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -10,11 +18,109 @@ const Vein = ({ style }: { style: React.CSSProperties }) => (
   <div className="absolute" style={{ pointerEvents: "none", ...style }} />
 );
 
-// ─── Default: Abyssal Jade ─────────────────────────────────────────────────────
-// Deep navy base with flowing teal and violet mineral currents.
-const DefaultBg = () => (
+// ─── Default: renders the selected wallpaper preset ─────────────────────────
+const DefaultBg = () => {
+  const [presetId, setPresetId] = useState(getSelectedWallpaper);
+
+  useEffect(() => {
+    const handler = () => setPresetId(getSelectedWallpaper());
+    window.addEventListener("wallpaperchange", handler);
+    return () => window.removeEventListener("wallpaperchange", handler);
+  }, []);
+
+  const preset = useMemo(() => getPresetById(presetId), [presetId]);
+
+  // Update glass colour and accent colours to match wallpaper preset
+  // ONLY applies when the active theme is "default" — other themes handle their own vars
+  useEffect(() => {
+    const root = document.documentElement;
+    const currentTheme = root.dataset.theme;
+
+    // Only apply wallpaper overrides for the default theme
+    if (currentTheme && currentTheme !== "default" && currentTheme !== "custom") return;
+    if (!preset) return;
+
+    if (preset.glassColor) {
+      root.style.setProperty("--surface-glass", preset.glassColor);
+      root.style.setProperty("--popover", preset.glassColor);
+      root.style.setProperty("--card", preset.glassColor);
+    }
+    if (preset.accentColor) {
+      root.style.setProperty("--secondary", preset.accentColor.secondary);
+      root.style.setProperty("--input", preset.accentColor.input);
+      root.style.setProperty("--border", preset.accentColor.border);
+      if (preset.accentColor.primary) {
+        root.style.setProperty("--primary", preset.accentColor.primary);
+        root.style.setProperty("--ring", preset.accentColor.primary);
+        root.style.setProperty("--glow-primary", preset.accentColor.primary);
+      }
+    }
+    if (preset.greetingGradient) {
+      root.style.setProperty("--greeting-start", preset.greetingGradient.start);
+      root.style.setProperty("--greeting-mid", preset.greetingGradient.mid);
+      root.style.setProperty("--greeting-end", preset.greetingGradient.end);
+    }
+    if (preset.bubbleColors) {
+      root.style.setProperty("--bubble-ai-start", preset.bubbleColors.aiStart);
+      root.style.setProperty("--bubble-ai-end", preset.bubbleColors.aiEnd);
+      root.style.setProperty("--bubble-user-start", preset.bubbleColors.userStart);
+      root.style.setProperty("--bubble-user-end", preset.bubbleColors.userEnd);
+    }
+  }, [preset]);
+
+  if (!preset) return <DefaultFallbackBg />;
+
+  return (
+    <>
+      {/* Base gradient fallback */}
+      <div className="absolute inset-0" style={{ background: preset.base }} />
+
+      {/* Textured background image — primary visual layer */}
+      {preset.backgroundImage && (
+        <img
+          src={preset.backgroundImage}
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            pointerEvents: "none",
+            animation: "bg-breathe 25s ease-in-out infinite, bg-hue-drift 40s ease-in-out infinite",
+            willChange: "transform, filter",
+          }}
+        />
+      )}
+
+      {/* Layered orbs / glows (subtle, on top of image) */}
+      {preset.layers?.map((layer, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            top: "-20%",
+            left: "-20%",
+            width: "140%",
+            height: "140%",
+            background: layer.bg,
+            filter: layer.blur ? `blur(${layer.blur}px)` : undefined,
+            animation: layer.animation,
+            borderRadius: "50%",
+            pointerEvents: "none" as const,
+            willChange: "transform",
+            opacity: 0.4,
+          }}
+        />
+      ))}
+    </>
+  );
+};
+
+// Fallback if preset not found — the old DefaultBg (Abyssal Jade)
+const DefaultFallbackBg = () => (
   <>
-    {/* Primary teal fluid mass */}
     <Blob style={{
       width: "150vw", height: "110vw",
       top: "-30%", left: "-30%",
@@ -23,8 +129,6 @@ const DefaultBg = () => (
       filter: "blur(50px)",
       animation: "theme-marble-drift 32s ease-in-out infinite",
     }} />
-
-    {/* Violet depth pool */}
     <Blob style={{
       width: "120vw", height: "95vw",
       bottom: "-25%", right: "-25%",
@@ -33,8 +137,6 @@ const DefaultBg = () => (
       filter: "blur(60px)",
       animation: "theme-marble-drift 40s ease-in-out infinite reverse 8s",
     }} />
-
-    {/* Bright teal luminous pool */}
     <Blob style={{
       width: "55vw", height: "35vw",
       top: "35%", left: "25%",
@@ -43,8 +145,6 @@ const DefaultBg = () => (
       filter: "blur(30px)",
       animation: "theme-marble-drift 56s ease-in-out infinite 15s",
     }} />
-
-    {/* Teal vein */}
     <Vein style={{
       width: "160%", height: "100px",
       top: "26%", left: "-30%",
@@ -53,8 +153,6 @@ const DefaultBg = () => (
       filter: "blur(6px)",
       animation: "theme-sunset-pulse 16s ease-in-out infinite 4s",
     }} />
-
-    {/* Violet vein */}
     <Vein style={{
       width: "130%", height: "72px",
       bottom: "34%", left: "-12%",
@@ -66,61 +164,117 @@ const DefaultBg = () => (
   </>
 );
 
-// ─── Midnight: Amethyst Dream ──────────────────────────────────────────────────
-// Deep indigo with violet and magenta crystal flows.
-const MidnightBg = () => (
-  <>
-    {/* Primary amethyst mass */}
-    <Blob style={{
-      width: "145vw", height: "115vw",
-      top: "-35%", right: "-28%",
-      borderRadius: "46% 54% 50% 50% / 55% 45% 55% 45%",
-      background: "radial-gradient(ellipse 50% 46% at 50% 46%, hsl(262 80% 38% / 0.72) 0%, hsl(240 60% 25% / 0.45) 50%, transparent 70%)",
-      filter: "blur(55px)",
-      animation: "theme-marble-drift 36s ease-in-out infinite",
-    }} />
+// ─── Midnight: Celestial wallpaper preset system ────────────────────────────
 
-    {/* Magenta tendril */}
-    <Blob style={{
-      width: "105vw", height: "82vw",
-      bottom: "-20%", left: "-20%",
-      borderRadius: "52% 48% 45% 55% / 50% 55% 45% 50%",
-      background: "radial-gradient(ellipse 55% 50% at 46% 50%, hsl(320 76% 38% / 0.65) 0%, hsl(308 55% 22% / 0.38) 50%, transparent 70%)",
-      filter: "blur(58px)",
-      animation: "theme-marble-drift 44s ease-in-out infinite reverse 10s",
-    }} />
+const MIDNIGHT_OVERLAYS: Record<string, React.FC> = {
+  "lavender-mist": LavenderMistOverlay,
+  "violet-nebula": VioletNebulaOverlay,
+  "moon-phases": MoonPhasesOverlay,
+  "celestial-map": CelestialMapOverlay,
+};
 
-    {/* Bright violet shimmer */}
-    <Blob style={{
-      width: "55vw", height: "36vw",
-      top: "34%", left: "22%",
-      borderRadius: "50%",
-      background: "radial-gradient(ellipse, hsl(262 90% 68% / 0.30) 0%, transparent 65%)",
-      filter: "blur(28px)",
-      animation: "theme-marble-drift 60s ease-in-out infinite 18s",
-    }} />
+const MidnightBg = () => {
+  const [presetId, setPresetId] = useState(getSelectedMidnightWallpaper);
 
-    {/* Purple vein */}
-    <Vein style={{
-      width: "170%", height: "92px",
-      top: "30%", left: "-35%",
-      transform: "rotate(-9deg)",
-      background: "linear-gradient(to right, transparent 0%, hsl(262 85% 75% / 0.14) 32%, hsl(262 90% 88% / 0.22) 52%, hsl(262 85% 75% / 0.11) 70%, transparent 100%)",
-      filter: "blur(7px)",
-      animation: "theme-sunset-pulse 18s ease-in-out infinite 5s",
-    }} />
+  useEffect(() => {
+    const handler = () => setPresetId(getSelectedMidnightWallpaper());
+    window.addEventListener("wallpaperchange", handler);
+    return () => window.removeEventListener("wallpaperchange", handler);
+  }, []);
 
-    {/* Magenta vein */}
-    <Vein style={{
-      width: "140%", height: "66px",
-      bottom: "28%", right: "-22%",
-      transform: "rotate(7deg)",
-      background: "linear-gradient(to left, transparent 0%, hsl(320 82% 72% / 0.16) 35%, hsl(320 82% 84% / 0.13) 60%, transparent 100%)",
-      filter: "blur(5px)",
-      animation: "theme-sunset-pulse 25s ease-in-out infinite 9s",
-    }} />
-  </>
-);
+  const preset = useMemo(() => getMidnightPresetById(presetId), [presetId]);
+
+  // Apply CSS variable overrides for this wallpaper preset
+  useEffect(() => {
+    const root = document.documentElement;
+    const currentTheme = root.dataset.theme;
+    if (currentTheme !== "midnight") return;
+    if (!preset) return;
+
+    if (preset.glassColor) {
+      root.style.setProperty("--surface-glass", preset.glassColor);
+      root.style.setProperty("--popover", preset.glassColor);
+      root.style.setProperty("--card", preset.glassColor);
+    }
+    if (preset.accentColor) {
+      root.style.setProperty("--secondary", preset.accentColor.secondary);
+      root.style.setProperty("--input", preset.accentColor.input);
+      root.style.setProperty("--border", preset.accentColor.border);
+      if (preset.accentColor.primary) {
+        root.style.setProperty("--primary", preset.accentColor.primary);
+        root.style.setProperty("--ring", preset.accentColor.primary);
+        root.style.setProperty("--glow-primary", preset.accentColor.primary);
+      }
+    }
+    if (preset.greetingGradient) {
+      root.style.setProperty("--greeting-start", preset.greetingGradient.start);
+      root.style.setProperty("--greeting-mid", preset.greetingGradient.mid);
+      root.style.setProperty("--greeting-end", preset.greetingGradient.end);
+    }
+    if (preset.bubbleColors) {
+      root.style.setProperty("--bubble-ai-start", preset.bubbleColors.aiStart);
+      root.style.setProperty("--bubble-ai-end", preset.bubbleColors.aiEnd);
+      root.style.setProperty("--bubble-user-start", preset.bubbleColors.userStart);
+      root.style.setProperty("--bubble-user-end", preset.bubbleColors.userEnd);
+    }
+  }, [preset]);
+
+  if (!preset) {
+    return (
+      <div className="absolute inset-0" style={{
+        background: "radial-gradient(ellipse 92% 72% at 50% 38%, hsl(252,48%,16%) 0%, hsl(262,45%,13%) 50%, hsl(248,42%,10%) 100%)",
+      }} />
+    );
+  }
+
+  const Overlay = MIDNIGHT_OVERLAYS[presetId];
+
+  return (
+    <>
+      {/* Base gradient */}
+      <div className="absolute inset-0" style={{ background: preset.base }} />
+      {/* PNG background image (e.g. Moon Phases Classic) */}
+      {preset.backgroundImage && (
+        <img
+          src={preset.backgroundImage}
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            pointerEvents: "none",
+            animation: "bg-breathe 25s ease-in-out infinite",
+            willChange: "transform",
+          }}
+        />
+      )}
+      {/* Gradient layers (e.g. Moon Glow) */}
+      {preset.layers?.map((layer, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            top: "-20%",
+            left: "-20%",
+            width: "140%",
+            height: "140%",
+            background: layer.bg,
+            filter: layer.blur ? `blur(${layer.blur}px)` : undefined,
+            animation: layer.animation,
+            borderRadius: "50%",
+            pointerEvents: "none" as const,
+            willChange: "transform",
+          }}
+        />
+      ))}
+      {/* Preset-specific animated overlay */}
+      {Overlay && <Overlay />}
+    </>
+  );
+};
 
 // ─── Forest: Malachite ─────────────────────────────────────────────────────────
 // Rich dark-emerald fluid — the green the user loved in the preview.
@@ -341,14 +495,22 @@ const CustomBg = () => {
   const [imgUrl, setImgUrl] = useState<string>(
     () => localStorage.getItem("customBackground") ?? ""
   );
+  const [isActive, setIsActive] = useState<boolean>(
+    () => localStorage.getItem("customBgActive") !== "false"
+  );
 
   useEffect(() => {
-    const handler = () => setImgUrl(localStorage.getItem("customBackground") ?? "");
-    window.addEventListener("customBgUpdate", handler);
-    return () => window.removeEventListener("customBgUpdate", handler);
+    const handleUrl = () => setImgUrl(localStorage.getItem("customBackground") ?? "");
+    const handleToggle = () => setIsActive(localStorage.getItem("customBgActive") !== "false");
+    window.addEventListener("customBgUpdate", handleUrl);
+    window.addEventListener("customBgToggle", handleToggle);
+    return () => {
+      window.removeEventListener("customBgUpdate", handleUrl);
+      window.removeEventListener("customBgToggle", handleToggle);
+    };
   }, []);
 
-  if (!imgUrl) return null;
+  if (!imgUrl || !isActive) return null;
 
   return (
     <div
@@ -368,11 +530,14 @@ const CustomBg = () => {
 
 const ThemeBackground = () => {
   const [themeId, setThemeId] = useState<string>(() => {
+    // If focus mode is active, show focus bg
+    if (localStorage.getItem("focus-mode") === "true") return "focus";
+    // Resolve actual theme — "custom" just means custom bg is layered on top of default
     try {
       const saved = localStorage.getItem("customize-settings");
       if (saved) {
         const { background } = JSON.parse(saved);
-        if (background) return background;
+        if (background && background !== "custom") return background;
       }
     } catch {
       // ignore
@@ -380,23 +545,46 @@ const ThemeBackground = () => {
     return document.documentElement.dataset.theme ?? "default";
   });
 
+  const [focusActive, setFocusActive] = useState(
+    () => localStorage.getItem("focus-mode") === "true"
+  );
+
   useEffect(() => {
     const handler = () => {
-      setThemeId(document.documentElement.dataset.theme ?? "default");
+      const raw = document.documentElement.dataset.theme ?? "default";
+      // Map "custom" to "default" — custom bg is a layer, not a theme replacement
+      setThemeId(raw === "custom" ? "default" : raw);
+    };
+    const focusHandler = () => {
+      const isFocus = localStorage.getItem("focus-mode") === "true";
+      setFocusActive(isFocus);
+      if (isFocus) {
+        setThemeId("focus");
+      } else {
+        // Restore theme from dataset
+        const raw = document.documentElement.dataset.theme ?? "default";
+        setThemeId(raw === "custom" ? "default" : raw);
+      }
     };
     window.addEventListener("themechange", handler);
-    return () => window.removeEventListener("themechange", handler);
+    window.addEventListener("focusmodechange", focusHandler);
+    return () => {
+      window.removeEventListener("themechange", handler);
+      window.removeEventListener("focusmodechange", focusHandler);
+    };
   }, []);
 
   return (
     <>
+      {/* Theme-specific background — always renders */}
       {themeId === "default"  && <DefaultBg />}
       {themeId === "midnight" && <MidnightBg />}
       {themeId === "forest"   && <ForestBg />}
       {themeId === "sunset"   && <SunsetBg />}
       {themeId === "ocean"    && <OceanBg />}
       {themeId === "focus"    && <FocusBg />}
-      {themeId === "custom"   && <CustomBg />}
+      {/* Custom image/GIF — layers on top of theme bg when set, hidden during focus */}
+      {!focusActive && <CustomBg />}
     </>
   );
 };

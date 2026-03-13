@@ -23,13 +23,13 @@ interface MoodRingProps {
 
 // ── Colour palette per mood ───────────────────────────────────────────────────
 const MOOD_COLOURS: Record<MoodType, string> = {
-  idle:       "",                        // uses charColor
-  thinking:   "hsl(200 90% 60%)",        // bright cyan
-  talking:    "hsl(145 70% 50%)",        // green
-  excited:    "hsl(40 95% 55%)",         // golden yellow
-  empathetic: "hsl(280 60% 65%)",        // warm violet
-  focused:    "rgba(255, 255, 255, 0.85)", // sharp white
-  "barge-in": "hsl(0 78% 58%)",          // red
+  idle:       "",                          // uses charColor
+  thinking:   "hsl(185, 88%, 55%)",        // cyan
+  talking:    "hsl(145, 70%, 50%)",        // green
+  excited:    "hsl(45, 90%, 58%)",         // yellow/orange
+  empathetic: "hsl(270, 55%, 68%)",        // purple
+  focused:    "hsl(0, 0%, 90%)",           // white
+  "barge-in": "hsl(0, 70%, 55%)",          // red
 };
 
 const MoodRing = ({ mood, charColor, size = "sm", children, className = "" }: MoodRingProps) => {
@@ -85,7 +85,7 @@ const MoodRing = ({ mood, charColor, size = "sm", children, className = "" }: Mo
               filter: `drop-shadow(0 0 ${size === "lg" ? 8 : 4}px ${MOOD_COLOURS.focused})`,
             }}
             animate={{ rotate: 360 }}
-            transition={{ duration: 0.75, repeat: Infinity, ease: "linear" }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
           />
         )}
       </AnimatePresence>
