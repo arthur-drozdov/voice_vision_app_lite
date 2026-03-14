@@ -1139,25 +1139,26 @@ export const createMoonGlow: SceneBuilder = () => {
               gl_FragColor=vec4(surface,1.0);
             }`,
         },
-        { // Neptune — upper left
+        { // Venus — upper left
           pos: [-2.8, 0.8, -5.5] as const, r: 0.09,
-          haloColor: "rgba(40,100,220,0.25)",
+          haloColor: "rgba(220,180,80,0.25)",
           frag: `
             ${NOISE_GLSL}
             varying vec3 vNormal; varying vec3 vPos;
             void main(){
-              float bands=sin(vPos.y*20.0+fbm(vec3(vPos*4.0),3)*3.0)*0.5+0.5;
-              vec3 deep=vec3(0.05,0.10,0.45);
-              vec3 light=vec3(0.15,0.30,0.60);
-              vec3 surface=mix(deep,light,bands*0.4);
-              // Great Dark Spot
-              float spot=1.0-smoothstep(0.0,0.15,length(vPos.xy-vec2(0.02,-0.01)));
-              surface=mix(surface,vec3(0.03,0.05,0.30),spot*0.5);
+              float n=fbm(vec3(vPos*4.0+vec3(15.0)),4);
+              vec3 pale=vec3(0.82,0.72,0.45);
+              vec3 cream=vec3(0.75,0.65,0.42);
+              vec3 amber=vec3(0.65,0.52,0.30);
+              // Thick cloud bands
+              float bands=sin(vPos.y*12.0+n*3.0)*0.5+0.5;
+              vec3 surface=mix(cream,pale,bands*0.6);
+              surface=mix(surface,amber,smoothstep(0.3,0.6,n)*0.4);
               vec3 ld=normalize(vec3(-0.5,0.3,1.0));
               float NdotL=max(dot(vNormal,ld),0.0);
               surface*=0.3+NdotL*0.7;
               float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
-              surface+=vec3(0.10,0.25,0.65)*pow(rim,3.0)*0.35;
+              surface+=vec3(0.45,0.35,0.15)*pow(rim,3.0)*0.30;
               gl_FragColor=vec4(surface,1.0);
             }`,
         },
