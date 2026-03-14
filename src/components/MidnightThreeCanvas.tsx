@@ -83,6 +83,14 @@ const MidnightThreeCanvas: React.FC<Props> = ({ presetId }) => {
 
       handle.animate(clock.elapsed, dt);
       renderer.render(scene, camera);
+
+      // Second pass: foreground scene (e.g. Earth) — rendered on top
+      if (handle.foregroundScene) {
+        renderer.autoClear = false;
+        renderer.clearDepth();
+        renderer.render(handle.foregroundScene, camera);
+        renderer.autoClear = true;
+      }
     };
     rafId = requestAnimationFrame(tick);
 

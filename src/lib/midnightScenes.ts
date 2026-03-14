@@ -18,6 +18,7 @@ export interface SceneHandle {
   setup: (scene: THREE.Scene, camera: THREE.OrthographicCamera, aspect: number) => void;
   animate: (time: number, dt: number) => void;
   dispose: () => void;
+  foregroundScene?: THREE.Scene;
 }
 export type SceneBuilder = () => SceneHandle;
 
@@ -1006,6 +1007,7 @@ export const createMoonGlow: SceneBuilder = () => {
   let moonHalo: THREE.Sprite;
   let earthMesh: THREE.Mesh;
   let earthHalo: THREE.Sprite;
+  let fgScene: THREE.Scene;
   const disposables: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
 
@@ -1214,7 +1216,8 @@ export const createMoonGlow: SceneBuilder = () => {
         scene.add(ph);
       });
 
-      // ── 3D Earth — HQ generated texture, minimal shader ──
+      // ── 3D Earth — in a separate foreground scene ──
+      fgScene = new THREE.Scene();
       const earthR = 0.85;
       const earthGeo = new THREE.SphereGeometry(earthR, 64, 64);
       disposables.push(earthGeo);
@@ -1227,9 +1230,6 @@ export const createMoonGlow: SceneBuilder = () => {
           uTexture: { value: earthTexture },
           uTime: { value: 0 },
         },
-        transparent: false,
-        depthWrite: false,
-        depthTest: false,
         vertexShader: `
           varying vec3 vNormal; varying vec2 vUv;
           void main(){
@@ -1242,9 +1242,8 @@ export const createMoonGlow: SceneBuilder = () => {
           uniform sampler2D uTexture;
           varying vec3 vNormal; varying vec2 vUv;
           void main(){
-            // Raw texture — NO darkening, NO lighting
             vec3 col=texture2D(uTexture,vUv).rgb;
-            // Just atmosphere rim glow
+            // Atmosphere rim glow
             float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
             col+=vec3(0.3,0.5,1.0)*pow(rim,3.0)*0.35;
             col+=vec3(0.5,0.7,1.0)*pow(rim,8.0)*0.45;
@@ -1255,8 +1254,7 @@ export const createMoonGlow: SceneBuilder = () => {
       materials.push(earthMat);
       earthMesh = new THREE.Mesh(earthGeo, earthMat);
       earthMesh.position.set(-2.0, -2.5, 0);
-      earthMesh.renderOrder = 999;
-      scene.add(earthMesh);
+      fgScene.add(earthMesh);
 
       // Blue-white atmosphere halo
       const earthHaloTex = glowTexture(128, [
@@ -1272,7 +1270,7 @@ export const createMoonGlow: SceneBuilder = () => {
       earthHalo = new THREE.Sprite(earthHaloMat);
       earthHalo.scale.set(earthR * 5, earthR * 5, 1);
       earthHalo.position.set(-2.0, -2.5, -0.2);
-      scene.add(earthHalo);
+      fgScene.add(earthHalo);
 
       // ── 3D Moon — prominent, upper-right, BIG — real-time phase! ──
       // Calculate real moon phase from current date
@@ -1398,6 +1396,8 @@ export const createMoonGlow: SceneBuilder = () => {
       disposables.forEach(g => g.dispose());
       materials.forEach(m => m.dispose());
     },
+
+    get foregroundScene() { return fgScene; },
   };
 };
 
