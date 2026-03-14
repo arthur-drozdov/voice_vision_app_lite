@@ -1227,6 +1227,8 @@ export const createMoonGlow: SceneBuilder = () => {
           uTexture: { value: earthTexture },
           uTime: { value: 0 },
         },
+        transparent: false,
+        depthWrite: false,
         depthTest: false,
         vertexShader: `
           varying vec3 vNormal; varying vec2 vUv;
@@ -1253,7 +1255,7 @@ export const createMoonGlow: SceneBuilder = () => {
       materials.push(earthMat);
       earthMesh = new THREE.Mesh(earthGeo, earthMat);
       earthMesh.position.set(-2.0, -2.5, 0);
-      earthMesh.renderOrder = 10;
+      earthMesh.renderOrder = 999;
       scene.add(earthMesh);
 
       // Blue-white atmosphere halo
@@ -1386,7 +1388,7 @@ export const createMoonGlow: SceneBuilder = () => {
       moonHalo.scale.set(breathe, breathe, 1);
 
       // Earth slow rotation
-      earthMesh.rotation.y = time * 0.008;
+      earthMesh.rotation.y = time * 0.06;
       (earthMesh.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
       const earthBreathe = 0.85 * 5 * (1 + Math.sin(time * 0.15) * 0.08);
       earthHalo.scale.set(earthBreathe, earthBreathe, 1);
