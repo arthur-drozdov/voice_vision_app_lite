@@ -1214,12 +1214,12 @@ export const createMoonGlow: SceneBuilder = () => {
         scene.add(ph);
       });
 
-      // ── 3D Earth — realistic NASA Blue Marble texture ──
+      // ── 3D Earth — HQ generated texture, minimal shader ──
       const earthR = 0.85;
       const earthGeo = new THREE.SphereGeometry(earthR, 64, 64);
       disposables.push(earthGeo);
 
-      const earthTexture = new THREE.TextureLoader().load('/earth_texture.jpg');
+      const earthTexture = new THREE.TextureLoader().load('/earth_bluemarble.jpg');
       earthTexture.colorSpace = THREE.SRGBColorSpace;
 
       const earthMat = new THREE.ShaderMaterial({
@@ -1227,42 +1227,33 @@ export const createMoonGlow: SceneBuilder = () => {
           uTexture: { value: earthTexture },
           uTime: { value: 0 },
         },
+        depthTest: false,
         vertexShader: `
-          varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+          varying vec3 vNormal; varying vec2 vUv;
           void main(){
             vNormal=normalize(normalMatrix*normal);
-            vPos=position;
             vUv=uv;
             gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
           }
         `,
         fragmentShader: `
           uniform sampler2D uTexture;
-          uniform float uTime;
-          varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+          varying vec3 vNormal; varying vec2 vUv;
           void main(){
-            vec3 tex=texture2D(uTexture,vUv).rgb;
-            // Directional light — warm sunlight from upper-left
-            vec3 ld=normalize(vec3(-0.6,0.4,1.0));
-            float NdotL=max(dot(vNormal,ld),0.0);
-            // Ambient + diffuse lighting
-            vec3 col=tex*(0.12+NdotL*0.88);
-            // Subtle specular on oceans (darker/bluer areas)
-            float specular=pow(max(dot(reflect(-ld,vNormal),vec3(0,0,1)),0.0),32.0);
-            float oceanMask=1.0-smoothstep(0.25,0.45,length(tex-vec3(0.1,0.2,0.4)));
-            col+=vec3(0.3,0.4,0.6)*specular*0.15*oceanMask;
-            // Atmosphere rim glow — blue edge
+            // Raw texture — NO darkening, NO lighting
+            vec3 col=texture2D(uTexture,vUv).rgb;
+            // Just atmosphere rim glow
             float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
             col+=vec3(0.3,0.5,1.0)*pow(rim,3.0)*0.35;
-            // Thin bright atmosphere line at edge
-            col+=vec3(0.5,0.7,1.0)*pow(rim,8.0)*0.6;
+            col+=vec3(0.5,0.7,1.0)*pow(rim,8.0)*0.45;
             gl_FragColor=vec4(col,1.0);
           }
         `,
       });
       materials.push(earthMat);
       earthMesh = new THREE.Mesh(earthGeo, earthMat);
-      earthMesh.position.set(-2.0, -2.5, -3);
+      earthMesh.position.set(-2.0, -2.5, 0);
+      earthMesh.renderOrder = 10;
       scene.add(earthMesh);
 
       // Blue-white atmosphere halo
@@ -1278,7 +1269,7 @@ export const createMoonGlow: SceneBuilder = () => {
       materials.push(earthHaloMat);
       earthHalo = new THREE.Sprite(earthHaloMat);
       earthHalo.scale.set(earthR * 5, earthR * 5, 1);
-      earthHalo.position.set(-2.0, -2.5, -3.2);
+      earthHalo.position.set(-2.0, -2.5, -0.2);
       scene.add(earthHalo);
 
       // ── 3D Moon — prominent, upper-right, BIG — real-time phase! ──
