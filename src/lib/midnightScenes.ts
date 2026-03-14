@@ -1146,19 +1146,24 @@ export const createMoonGlow: SceneBuilder = () => {
             ${NOISE_GLSL}
             varying vec3 vNormal; varying vec3 vPos;
             void main(){
-              float n=fbm(vec3(vPos*4.0+vec3(15.0)),4);
-              vec3 pale=vec3(0.82,0.72,0.45);
-              vec3 cream=vec3(0.75,0.65,0.42);
-              vec3 amber=vec3(0.65,0.52,0.30);
-              // Thick cloud bands
-              float bands=sin(vPos.y*12.0+n*3.0)*0.5+0.5;
-              vec3 surface=mix(cream,pale,bands*0.6);
-              surface=mix(surface,amber,smoothstep(0.3,0.6,n)*0.4);
+              float n=fbm(vec3(vPos*4.0+vec3(15.0)),5);
+              float n2=fbm(vec3(vPos*8.0+vec3(30.0)),4);
+              vec3 pale=vec3(0.72,0.58,0.32);
+              vec3 cream=vec3(0.60,0.50,0.30);
+              vec3 amber=vec3(0.50,0.35,0.18);
+              vec3 ochre=vec3(0.42,0.30,0.15);
+              // Thick swirling cloud bands
+              float bands=sin(vPos.y*14.0+n*4.0)*0.5+0.5;
+              vec3 surface=mix(cream,pale,bands*0.5);
+              surface=mix(surface,amber,smoothstep(0.2,0.5,n)*0.5);
+              surface=mix(surface,ochre,smoothstep(0.3,0.6,n2)*0.3);
+              // Fine cloud detail
+              surface+=vec3(0.08,0.06,0.02)*n2;
               vec3 ld=normalize(vec3(-0.5,0.3,1.0));
               float NdotL=max(dot(vNormal,ld),0.0);
-              surface*=0.3+NdotL*0.7;
+              surface*=0.20+NdotL*0.80;
               float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
-              surface+=vec3(0.45,0.35,0.15)*pow(rim,3.0)*0.30;
+              surface+=vec3(0.40,0.30,0.12)*pow(rim,3.0)*0.25;
               gl_FragColor=vec4(surface,1.0);
             }`,
         },
