@@ -74,7 +74,7 @@ const SelectContent = React.forwardRef<
       position={position}
       {...props}
       style={{
-        background: "hsl(var(--surface-glass) / 0.95)",
+        background: "hsl(var(--card))",
         backdropFilter: "blur(20px) saturate(1.3)",
         WebkitBackdropFilter: "blur(20px) saturate(1.3)",
         ...props.style,
@@ -107,14 +107,15 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, style, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none border-b border-border/20 last:border-b-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-primary/20 focus:text-foreground hover:bg-primary/20 hover:text-foreground data-[highlighted]:bg-primary/20 data-[highlighted]:text-foreground transition-colors",
+      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none border-b border-border/20 last:border-b-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors",
       className,
     )}
     {...props}
+    style={{ ...style, backgroundColor: "rgba(30, 30, 55, 0.95)" }}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>

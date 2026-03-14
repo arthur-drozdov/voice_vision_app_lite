@@ -62,20 +62,11 @@ const ChatHistory = () => {
       {/* Session list */}
       <div className="flex-1 overflow-y-auto px-5 pb-32">
         {sessions.length === 0 ? (
-          <div className="h-[50vh] flex flex-col items-center justify-center gap-4 text-center">
-            <motion.div
-              animate={{ scale: [1, 1.06, 1], opacity: [0.5, 0.8, 0.5] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              className="w-20 h-20 rounded-3xl glass flex items-center justify-center"
-            >
-              <MessageCircle size={32} className="text-primary/60" />
-            </motion.div>
-            <div>
-              <h2 className="text-base font-semibold text-foreground">No history yet</h2>
-              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-[220px]">
-                Your chat sessions will appear here after you start a conversation.
-              </p>
-            </div>
+          <div className="h-[50vh] flex flex-col items-center justify-center text-center gap-1">
+            <h2 className="text-base font-semibold text-white bg-background/40 rounded-md px-3 py-0.5 backdrop-blur-sm" style={{ fontFamily: "'Poppins', sans-serif" }}>No history yet</h2>
+            <p className="text-sm text-white/70 leading-relaxed max-w-[220px] bg-background/30 rounded-md px-3 py-0.5 backdrop-blur-sm" style={{ fontFamily: "'Poppins', sans-serif" }}>
+              Your chat sessions will appear here automatically after you start talking.
+            </p>
           </div>
         ) : (
           <div className="space-y-3 pt-3">

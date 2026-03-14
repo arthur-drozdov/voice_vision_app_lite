@@ -21,6 +21,7 @@ import CharacterSelect, { characters, Character } from "@/components/CharacterSe
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import GlassContainer from "@/components/GlassContainer";
+import OrbitWrap from "@/components/OrbitWrap";
 import FocusButton from "@/components/FocusButton";
 import TrustMemoryModal from "@/components/TrustMemoryModal";
 import { getUserName } from "@/lib/userProfileStore";
@@ -260,12 +261,12 @@ function getCurrentFact(): FunFact {
   const SEEN_KEY = "fun-facts-seen";
   const WINDOW_KEY = "fun-facts-window";
 
-  const threeHourWindow = Math.floor(Date.now() / (3 * 60 * 60 * 1000));
+  const fiveHourWindow = Math.floor(Date.now() / (5 * 60 * 60 * 1000));
 
-  // Check if we're still in the same 3-hour window
+  // Check if we're still in the same 5-hour window
   try {
     const lastWindow = parseInt(localStorage.getItem(WINDOW_KEY) ?? "0", 10);
-    if (lastWindow === threeHourWindow) {
+    if (lastWindow === fiveHourWindow) {
       // Same window — return the fact we already picked
       const lastIdx = parseInt(localStorage.getItem("fun-facts-current") ?? "0", 10);
       return FUN_FACTS[lastIdx % FUN_FACTS.length];
@@ -281,13 +282,13 @@ function getCurrentFact(): FunFact {
 
   // Pick a random unseen index (seeded by window for determinism)
   const unseen = FUN_FACTS.map((_, i) => i).filter((i) => !seen.includes(i));
-  const pick = unseen[threeHourWindow % unseen.length];
+  const pick = unseen[fiveHourWindow % unseen.length];
 
   // Save state
   seen.push(pick);
   try {
     localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
-    localStorage.setItem(WINDOW_KEY, String(threeHourWindow));
+    localStorage.setItem(WINDOW_KEY, String(fiveHourWindow));
     localStorage.setItem("fun-facts-current", String(pick));
   } catch { /* ignore */ }
 
@@ -473,14 +474,16 @@ const Index = () => {
           transition={{ duration: 0.5 }}
           className="flex items-start justify-between"
         >
-          <GlassContainer variant="dark" size="sm" className="inline-block">
-            <h1 className="text-2xl font-bold greeting-shimmer">{buildGreeting()}</h1>
-          </GlassContainer>
+          <OrbitWrap planet="earth">
+            <GlassContainer variant="dark" size="sm" className="inline-block">
+              <h1 className="text-2xl font-bold greeting-shimmer">{buildGreeting()}</h1>
+            </GlassContainer>
+          </OrbitWrap>
           <FocusButton />
         </motion.div>
       </header>
 
-      <div className="px-5 pb-4 space-y-6">
+      <div className="px-5 pb-20 space-y-6">
         {/* Daily Spark Engine */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -500,7 +503,7 @@ const Index = () => {
                     {spark.action && (
                       <button
                         onClick={() => navigate("/chat")}
-                        className="mt-2 text-xs font-semibold text-secondary hover:text-secondary/80 underline transition-colors"
+                        className="mt-2 text-xs font-semibold text-foreground hover:text-foreground/80 underline transition-colors"
                       >
                         {spark.action} →
                       </button>
@@ -514,7 +517,7 @@ const Index = () => {
 
         <div className="sparkle-divider" />
 
-        {/* Did you know? — rotates every 3 hours */}
+        {/* Did you know? — rotates every 5 hours */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -525,7 +528,7 @@ const Index = () => {
               <div className="flex items-start gap-3">
                 <span className="text-lg shrink-0">{currentFact.emoji}</span>
                 <div>
-                  <h3 className="text-xs font-bold text-secondary uppercase tracking-wider mb-1">Did you know?</h3>
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-1">Did you know?</h3>
                   <p className="text-xs text-foreground/70 leading-relaxed">{currentFact.text}</p>
                   <p className="text-[9px] text-foreground/30 mt-1.5">{currentFact.category}</p>
                 </div>
@@ -545,7 +548,7 @@ const Index = () => {
           >
             <Card className="glass overflow-hidden">
               <CardContent className="p-4">
-                <h2 className="text-xs font-bold text-secondary uppercase tracking-wider mb-3">
+                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider mb-3">
                   Memory Lane
                 </h2>
                 <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">

@@ -35,6 +35,8 @@ export interface WallpaperPreset {
   };
   /** Path to textured background image (in public/) */
   backgroundImage?: string;
+  /** Path to preview-only thumbnail (in public/), does NOT affect actual background */
+  previewImage?: string;
 }
 
 const STORAGE_KEY = "voicevision_bg_default";
@@ -106,7 +108,7 @@ export const wallpaperPresets: WallpaperPreset[] = [
     id: "teal-dawn",
     name: "Pearl Dusk",
     glassColor: "300 30% 22%",
-    accentColor: { primary: "290 50% 55%", secondary: "300 18% 68%", input: "295 22% 62%", border: "295 30% 30%" },
+    accentColor: { primary: "270 55% 58%", secondary: "300 18% 68%", input: "295 22% 62%", border: "295 30% 30%" },
     greetingGradient: { start: "200 60% 82%", mid: "270 55% 72%", end: "290 40% 80%" },
     bubbleColors: { aiStart: "240 30% 34%", aiEnd: "260 32% 42%", userStart: "340 40% 40%", userEnd: "320 35% 48%" },
     backgroundImage: "/backgrounds/rose-quartz.png",

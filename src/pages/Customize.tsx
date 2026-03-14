@@ -42,6 +42,7 @@ import { VoiceCloningPanel } from "@/components/VoiceCloningPanel";
 import { themes, applyTheme } from "@/lib/themes";
 import { TONES, ToneId } from "@/lib/characterPrompts";
 import GlassContainer from "@/components/GlassContainer";
+import OrbitWrap from "@/components/OrbitWrap";
 import { isFocusActive, toggleFocus } from "@/lib/FocusController";
 
 import { wallpaperPresets, getSelectedWallpaper, setSelectedWallpaper } from "@/lib/wallpaperPresets";
@@ -355,10 +356,12 @@ const Customize = () => {
     <div className="flex flex-col h-full page-customize">
       {/* Header */}
       <header className="flex items-center justify-between px-5 pt-12 pb-4">
-        <GlassContainer variant="dark" size="sm" className="flex flex-col">
-          <h1 className="text-lg font-semibold text-foreground leading-tight">Customise</h1>
-          <p className="text-xs text-muted-foreground">Theme, voice & accessibility</p>
-        </GlassContainer>
+        <OrbitWrap planet="neptune">
+          <GlassContainer variant="dark" size="sm" className="flex flex-col">
+            <h1 className="text-lg font-semibold text-foreground leading-tight">Customise</h1>
+            <p className="text-xs text-muted-foreground">Theme, voice & accessibility</p>
+          </GlassContainer>
+        </OrbitWrap>
       </header>
 
       {/* Main content */}
@@ -387,7 +390,7 @@ const Customize = () => {
                     <span className="flex items-center gap-2">
                       <span>{tone.emoji}</span>
                       <span className="font-medium">{tone.label}</span>
-                      <span className="text-muted-foreground text-xs ml-1">— {tone.description}</span>
+                      <span className="text-foreground/70 text-xs ml-1">— {tone.description}</span>
                     </span>
                   </SelectItem>
                 ))}
@@ -440,7 +443,7 @@ const Customize = () => {
                   ? "Accent colour — tap to change button & UI colours"
                   : "Background preset — tap to preview"}
               </p>
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className={`grid gap-2 ${settings.background === "midnight" ? "grid-cols-4" : "grid-cols-5"}`}>
                 {(settings.background === "midnight" ? midnightWallpaperPresets : wallpaperPresets).map((wp) => (
                   <button
                     key={wp.id}
@@ -465,8 +468,8 @@ const Customize = () => {
                       boxShadow: activeWp === wp.id ? "0 0 10px hsl(var(--glow-primary) / 0.35)" : "none",
                     }}
                   >
-                    {wp.backgroundImage ? (
-                      <div className="absolute inset-0" style={{ backgroundImage: `url(${wp.backgroundImage})`, backgroundSize: wp.id === "pearl-dusk" ? "300%" : "500%", backgroundPosition: "center" }} />
+                    {(wp.previewImage || wp.backgroundImage) ? (
+                      <div className="absolute inset-0" style={{ backgroundImage: `url(${wp.previewImage || wp.backgroundImage})`, backgroundSize: "cover", backgroundPosition: "center" }} />
                     ) : (
                       <>
                         <div className="absolute inset-0" style={{ background: wp.base }} />
@@ -474,6 +477,10 @@ const Customize = () => {
                           <div key={i} className="absolute inset-0" style={{ background: layer.bg }} />
                         ))}
                       </>
+                    )}
+                    {/* Dark glass overlay for non-selected presets */}
+                    {activeWp !== wp.id && (
+                      <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.45)" }} />
                     )}
                     <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 text-[9px] font-semibold text-white leading-tight" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.7))" }}>
                       {wp.name}

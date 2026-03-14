@@ -8,6 +8,7 @@ import { captureFrameResized } from "@/lib/pythonBridge";
 import { buildSystemPrompt } from "@/lib/characterPrompts";
 import MoodRing from "@/components/MoodRing";
 import GlassContainer from "@/components/GlassContainer";
+import OrbitWrap from "@/components/OrbitWrap";
 import FocusButton from "@/components/FocusButton";
 import { deriveVideoMood } from "@/lib/moodDetector";
 import SaveToCanvasPrompt from "@/components/SaveToCanvasPrompt";
@@ -320,10 +321,12 @@ const VideoAgent = () => {
       <div className="flex flex-col h-full items-center justify-center px-5">
         <div className="glass rounded-3xl p-8 w-full max-w-sm flex flex-col items-center gap-6">
           <div className="w-full flex items-start justify-between">
-            <GlassContainer variant="dark" size="sm" className="text-center">
-              <h1 className="text-2xl font-bold text-foreground">Video Chat</h1>
-              <p className="text-sm font-medium text-foreground/70 mt-1">Pick a character to video call</p>
-            </GlassContainer>
+            <OrbitWrap planet="jupiter">
+              <GlassContainer variant="dark" size="sm" className="text-center">
+                <h1 className="text-2xl font-bold text-foreground">Video Chat</h1>
+                <p className="text-sm font-medium text-foreground/70 mt-1">Pick a character to video call</p>
+              </GlassContainer>
+            </OrbitWrap>
             <FocusButton />
           </div>
           <CharacterSelect selected={selectedChar} onSelect={setSelectedChar} />
@@ -405,7 +408,7 @@ const VideoAgent = () => {
       </header>
 
       {/* Video preview */}
-      <div className="flex-1 px-5 pb-4">
+      <div className="flex-1 px-5 pb-20">
         <div className="relative w-full h-full rounded-2xl glass overflow-hidden flex items-center justify-center min-h-[300px]">
           {isActive ? (
             <>

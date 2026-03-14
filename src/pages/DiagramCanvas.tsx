@@ -25,6 +25,7 @@ import { saveBoard } from "@/lib/canvasStore";
 import type { CanvasFormat } from "@/lib/canvasStore";
 import { isFocusActive, toggleFocus } from "@/lib/FocusController";
 import GlassContainer from "@/components/GlassContainer";
+import OrbitWrap from "@/components/OrbitWrap";
 import FocusButton from "@/components/FocusButton";
 
 // ─── Format renderers ──────────────────────────────────────────────────────────
@@ -828,7 +829,7 @@ const BoardDetail = ({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 pb-20 space-y-4">
         {/* AI-generated content section */}
         {board.generationStatus !== "ready" ? (
           <GenerationState
@@ -1192,10 +1193,12 @@ const DiagramCanvas = () => {
       {/* Header */}
       <header className="px-5 pt-12 pb-3 page-header">
         <div className="flex items-start justify-between">
-          <GlassContainer variant="dark" size="sm" className="flex flex-col">
-            <h1 className="text-lg font-semibold text-foreground leading-tight">Canvas</h1>
-            <p className="text-xs text-foreground/70 mt-0.5">AI Co-working Space</p>
-          </GlassContainer>
+          <OrbitWrap planet="venus">
+            <GlassContainer variant="dark" size="sm" className="flex flex-col">
+              <h1 className="text-lg font-semibold text-foreground leading-tight">Canvas</h1>
+              <p className="text-xs text-foreground/70 mt-0.5">AI Co-working Space</p>
+            </GlassContainer>
+          </OrbitWrap>
           <div className="flex items-center gap-2">
             <GlassContainer variant="dark" size="sm">
               <span className="text-xs text-foreground/70">{boardCountLabel}</span>
@@ -1321,14 +1324,11 @@ const DiagramCanvas = () => {
               className="space-y-3 pt-3"
             >
               {sessions.length === 0 ? (
-                <div className="h-[50vh] flex flex-col items-center justify-center gap-4 text-center">
-                  <Clock size={32} className="text-foreground/40" />
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">No history yet</h2>
-                    <p className="text-sm text-foreground/70 mt-1.5 max-w-[220px] leading-relaxed">
-                      Your chat sessions will appear here automatically after you start talking.
-                    </p>
-                  </div>
+                <div className="h-[50vh] flex flex-col items-center justify-center text-center gap-1">
+                  <h2 className="text-base font-semibold text-white bg-background/40 rounded-md px-3 py-0.5 backdrop-blur-sm" style={{ fontFamily: "'Poppins', sans-serif" }}>No history yet</h2>
+                  <p className="text-sm text-white/70 leading-relaxed max-w-[220px] bg-background/30 rounded-md px-3 py-0.5 backdrop-blur-sm" style={{ fontFamily: "'Poppins', sans-serif" }}>
+                    Your chat sessions will appear here automatically after you start talking.
+                  </p>
                 </div>
               ) : (
                 sessions.map((session) => (

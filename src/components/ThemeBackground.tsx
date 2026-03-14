@@ -1,12 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { getSelectedWallpaper, getPresetById } from "@/lib/wallpaperPresets";
 import { getSelectedMidnightWallpaper, getMidnightPresetById } from "@/lib/midnightWallpaperPresets";
-import {
-  VioletNebulaOverlay,
-  MoonPhasesOverlay,
-  LavenderMistOverlay,
-  CelestialMapOverlay,
-} from "@/components/MidnightPresetOverlays";
+import MidnightThreeCanvas from "@/components/MidnightThreeCanvas";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -164,14 +159,10 @@ const DefaultFallbackBg = () => (
   </>
 );
 
-// ─── Midnight: Celestial wallpaper preset system ────────────────────────────
+// ─── Midnight: Celestial wallpaper preset system (Three.js) ─────────────────
 
-const MIDNIGHT_OVERLAYS: Record<string, React.FC> = {
-  "lavender-mist": LavenderMistOverlay,
-  "violet-nebula": VioletNebulaOverlay,
-  "moon-phases": MoonPhasesOverlay,
-  "celestial-map": CelestialMapOverlay,
-};
+// Presets that have a Three.js scene builder
+const THREE_JS_PRESETS = new Set(["violet-nebula", "moon-phases", "moon-glow", "lavender-mist", "celestial-map"]);
 
 const MidnightBg = () => {
   const [presetId, setPresetId] = useState(getSelectedMidnightWallpaper);
@@ -227,13 +218,12 @@ const MidnightBg = () => {
     );
   }
 
-  const Overlay = MIDNIGHT_OVERLAYS[presetId];
-
   return (
     <>
-      {/* Base gradient */}
-      <div className="absolute inset-0" style={{ background: preset.base }} />
-      {/* PNG background image (e.g. Moon Phases Classic) */}
+      {/* Base gradient — skip for moon-phases (has its own dithered shader bg) */}
+      {presetId !== "moon-phases" && (
+        <div className="absolute inset-0" style={{ background: preset.base, filter: "blur(0.6px)" }} />
+      )}
       {preset.backgroundImage && (
         <img
           src={preset.backgroundImage}
@@ -251,27 +241,88 @@ const MidnightBg = () => {
           }}
         />
       )}
-      {/* Gradient layers (e.g. Moon Glow) */}
-      {preset.layers?.map((layer, i) => (
+      {/* Three.js animated background */}
+      {THREE_JS_PRESETS.has(presetId) && (
+        <MidnightThreeCanvas presetId={presetId} />
+      )}
+
+      {/* ── CSS Overlay Layers — per-subtheme visibility ── */}
+
+      {/* Constellation dot grid — hide on lavender-mist (has own grid) and violet-nebula (too busy) and moon-phases */}
+      {presetId !== "lavender-mist" && presetId !== "violet-nebula" && presetId !== "moon-phases" && (
         <div
-          key={i}
+          className="midnight-constellation-grid"
           style={{
             position: "absolute",
-            top: "-20%",
-            left: "-20%",
-            width: "140%",
-            height: "140%",
-            background: layer.bg,
-            filter: layer.blur ? `blur(${layer.blur}px)` : undefined,
-            animation: layer.animation,
-            borderRadius: "50%",
-            pointerEvents: "none" as const,
-            willChange: "transform",
+            inset: 0,
+            pointerEvents: "none",
+            background: "radial-gradient(circle 1.5px at center, hsla(262,70%,75%,0.20) 0%, transparent 100%)",
+            backgroundSize: "42px 42px",
+            animation: "constFade 14s ease-in-out infinite alternate",
           }}
         />
-      ))}
-      {/* Preset-specific animated overlay */}
-      {Overlay && <Overlay />}
+      )}
+
+      {/* CSS Moon — hide on violet-nebula (nebula is hero), moon-phases (9 moons are hero), moon-glow (3D moon is hero) */}
+      {presetId !== "violet-nebula" && presetId !== "moon-phases" && presetId !== "moon-glow" && (
+        <div
+          className="midnight-moon"
+          style={{
+            position: "absolute",
+            top: -55,
+            right: 50,
+            width: 220,
+            height: 220,
+            borderRadius: "50%",
+            // Realistic moon surface: base + mare (dark seas) + highlands + craters
+            background: presetId === "lavender-mist"
+              ? `radial-gradient(circle at 40% 40%, hsla(45,60%,88%,0.9) 0%, hsl(40,35%,60%) 50%, transparent 72%)`
+              : [
+                // Asymmetric light side — brighter upper-left, dimmer lower-right
+                "radial-gradient(circle at 32% 30%, hsla(0,0%,98%,0.95) 0%, hsla(0,0%,88%,0.6) 20%, transparent 50%)",
+                // Large dark maria — irregular shapes, strong contrast
+                "radial-gradient(ellipse 32% 28% at 55% 35%, hsla(230,12%,38%,0.50) 0%, transparent 100%)",
+                "radial-gradient(ellipse 38% 42% at 28% 52%, hsla(215,10%,42%,0.45) 0%, transparent 100%)",
+                "radial-gradient(ellipse 25% 20% at 42% 25%, hsla(225,10%,36%,0.40) 0%, transparent 100%)",
+                "radial-gradient(ellipse 20% 16% at 50% 30%, hsla(235,12%,40%,0.38) 0%, transparent 100%)",
+                "radial-gradient(ellipse 12% 10% at 65% 35%, hsla(220,14%,35%,0.42) 0%, transparent 100%)",
+                // Rough highland patches — lighter, warm-tinted
+                "radial-gradient(ellipse 22% 25% at 68% 55%, hsla(38,14%,72%,0.30) 0%, transparent 100%)",
+                "radial-gradient(ellipse 18% 14% at 25% 30%, hsla(32,10%,68%,0.25) 0%, transparent 100%)",
+                "radial-gradient(ellipse 14% 18% at 72% 28%, hsla(40,8%,70%,0.22) 0%, transparent 100%)",
+                // Bright crater rays — asymmetric splashes
+                "radial-gradient(circle 8px at 46% 66%, hsla(0,0%,96%,0.65) 0%, hsla(0,0%,85%,0.20) 50%, transparent 100%)",
+                "radial-gradient(ellipse 15% 4% at 46% 66%, hsla(0,0%,92%,0.30) 0%, transparent 100%)",
+                "radial-gradient(ellipse 4% 12% at 46% 66%, hsla(0,0%,90%,0.25) 0%, transparent 100%)",
+                // More craters — various sizes
+                "radial-gradient(circle 6px at 33% 40%, hsla(0,0%,90%,0.45) 0%, hsla(230,5%,60%,0.15) 80%, transparent 100%)",
+                "radial-gradient(circle 4px at 24% 44%, hsla(0,0%,88%,0.38) 0%, transparent 100%)",
+                "radial-gradient(circle 3px at 20% 36%, hsla(0,0%,93%,0.48) 0%, transparent 100%)",
+                "radial-gradient(circle 5px at 40% 20%, hsla(225,8%,35%,0.35) 0%, transparent 100%)",
+                "radial-gradient(circle 4px at 17% 50%, hsla(218,10%,32%,0.32) 0%, transparent 100%)",
+                "radial-gradient(circle 3px at 58% 52%, hsla(0,0%,78%,0.28) 0%, transparent 100%)",
+                // Scattered roughness — many tiny dark/light spots
+                "radial-gradient(circle 2px at 38% 48%, hsla(225,6%,55%,0.22) 0%, transparent 100%)",
+                "radial-gradient(circle 2px at 52% 58%, hsla(0,0%,80%,0.20) 0%, transparent 100%)",
+                "radial-gradient(circle 1px at 60% 25%, hsla(0,0%,92%,0.25) 0%, transparent 100%)",
+                "radial-gradient(circle 2px at 45% 42%, hsla(220,8%,50%,0.18) 0%, transparent 100%)",
+                "radial-gradient(circle 1px at 30% 60%, hsla(0,0%,85%,0.22) 0%, transparent 100%)",
+                "radial-gradient(circle 2px at 62% 45%, hsla(230,5%,58%,0.16) 0%, transparent 100%)",
+                "radial-gradient(circle 1px at 55% 35%, hsla(0,0%,75%,0.20) 0%, transparent 100%)",
+                // Non-uniform base — darker on right, lighter left
+                "radial-gradient(ellipse 55% 55% at 40% 45%, hsl(240,5%,75%) 0%, hsl(245,10%,58%) 40%, hsl(250,12%,48%) 65%, transparent 75%)",
+              ].join(", "),
+            boxShadow: presetId === "lavender-mist"
+              ? "0 0 60px 20px hsla(42,65%,60%,0.20), 0 0 120px 40px hsla(42,50%,45%,0.10), inset -15px -10px 30px hsla(40,20%,30%,0.3)"
+              : "0 0 60px 20px hsla(262,85%,70%,0.25), 0 0 120px 40px hsla(262,70%,55%,0.12), inset -15px -10px 30px hsla(240,30%,15%,0.4)",
+            pointerEvents: "none",
+            animation: "moonGlow 10s ease-in-out infinite alternate",
+          }}
+        />
+      )}
+
+      {/* Saturn now rendered by Three.js in midnightScenes.ts */}
+
     </>
   );
 };
