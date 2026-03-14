@@ -13,7 +13,7 @@ export const themes: Theme[] = [
     id: "default",
     label: "Default",
     swatch: "hsl(175, 40%, 6%)",
-    swatchGradient: "linear-gradient(135deg, hsl(172,88%,35%), hsl(220,70%,42%), hsl(270,55%,50%))",
+    swatchGradient: "radial-gradient(circle at 35% 35%, hsl(185,50%,28%), hsl(175,40%,10%) 60%, hsl(175,40%,6%))",
     userBubble: "linear-gradient(135deg, hsl(172,88%,38%), hsl(200,60%,48%))",
     aiBubble: "linear-gradient(135deg, hsl(270,45%,38%), hsl(290,35%,44%))",
     vars: {
@@ -44,7 +44,7 @@ export const themes: Theme[] = [
     id: "midnight",
     label: "Midnight",
     swatch: "hsl(240, 28%, 14%)",
-    swatchGradient: "linear-gradient(135deg, hsl(262,85%,48%), hsl(320,80%,48%), hsl(280,70%,42%))",
+    swatchGradient: "radial-gradient(circle at 40% 30%, hsl(270,45%,32%), hsl(252,48%,16%) 55%, hsl(248,42%,10%))",
     userBubble: "linear-gradient(135deg, hsl(262,80%,58%), hsl(290,70%,52%))",
     aiBubble: "linear-gradient(135deg, hsl(240,24%,22%), hsl(260,20%,20%))",
     vars: {

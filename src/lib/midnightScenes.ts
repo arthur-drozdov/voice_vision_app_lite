@@ -469,6 +469,7 @@ export const createVioletNebula: SceneBuilder = () => {
   let starLayer2: THREE.Points;
   let milkyWay: THREE.Points;
   let shootingStars: ShootingStar[];
+  let saturnGroup: THREE.Group;
   const disposables: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
 
@@ -563,6 +564,119 @@ export const createVioletNebula: SceneBuilder = () => {
       scene.add(milkyWay);
       createNebulaSprites(aspect, 42, scene, disposables, materials);
       shootingStars = createShootingStars(5, aspect, 42, scene, disposables, materials);
+
+      // ── 3D Saturn — moved from Moon Glow ──
+      saturnGroup = new THREE.Group();
+      saturnGroup.rotation.z = 35 * Math.PI / 180;
+      saturnGroup.rotation.x = 20 * Math.PI / 180;
+
+      const satR = 0.90;
+      const satGeo = new THREE.SphereGeometry(satR, 48, 48);
+      disposables.push(satGeo);
+      const satMat = new THREE.ShaderMaterial({
+        vertexShader: `
+          varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+          void main(){
+            vNormal=normalize(normalMatrix*normal);
+            vPos=position;
+            vUv=uv;
+            gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+          }
+        `,
+        fragmentShader: `
+          ${NOISE_GLSL}
+          varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
+          void main(){
+            float y=vUv.y;
+            float warp=fbm(vec3(vPos*2.5+vec3(5.0)),3)*0.06;
+            float bandY=y+warp;
+            vec3 darkViolet=vec3(0.18,0.10,0.16);
+            vec3 amber=vec3(0.68,0.48,0.22);
+            vec3 gold=vec3(0.78,0.62,0.28);
+            vec3 deepOrange=vec3(0.55,0.32,0.14);
+            vec3 cream=vec3(0.75,0.68,0.40);
+            float b=bandY*30.0;
+            vec3 col=amber;
+            col=mix(col,gold,smoothstep(0.3,0.7,sin(b)));
+            col=mix(col,deepOrange,smoothstep(0.4,0.6,sin(b*0.6+1.0))*0.5);
+            col=mix(col,darkViolet,smoothstep(0.55,0.65,sin(b*0.35+2.0))*0.45);
+            col=mix(col,cream,smoothstep(0.7,0.9,sin(b*0.8+0.5))*0.35);
+            float coarseNoise=fbm(vec3(vPos*6.0),4)*0.12;
+            float fineNoise=fbm(vec3(vPos*18.0),3)*0.06;
+            col+=coarseNoise+fineNoise;
+            float storm=1.0-smoothstep(0.0,0.10,length(vPos.xy-vec2(0.12,-0.08)));
+            col=mix(col,vec3(0.40,0.18,0.10),storm*0.55);
+            vec3 ld=normalize(vec3(-0.5,0.3,1.0));
+            float NdotL=max(dot(vNormal,ld),0.0);
+            col*=0.15+NdotL*0.85;
+            float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
+            col+=vec3(0.40,0.28,0.10)*pow(rim,3.5)*0.25;
+            gl_FragColor=vec4(col,1.0);
+          }
+        `,
+      });
+      materials.push(satMat);
+      const satMesh = new THREE.Mesh(satGeo, satMat);
+      saturnGroup.add(satMesh);
+
+      // Ring
+      const ringInner = satR * 1.4;
+      const ringOuter = satR * 2.4;
+      const ringGeo = new THREE.RingGeometry(ringInner, ringOuter, 128);
+      disposables.push(ringGeo);
+      const ringMat = new THREE.ShaderMaterial({
+        side: THREE.DoubleSide,
+        transparent: true,
+        uniforms: { uInner: { value: ringInner }, uOuter: { value: ringOuter } },
+        vertexShader: `varying vec3 vPos;void main(){vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+        fragmentShader: `
+          ${NOISE_GLSL}
+          uniform float uInner; uniform float uOuter;
+          varying vec3 vPos;
+          void main(){
+            float dist=length(vPos.xy);
+            float t=(dist-uInner)/(uOuter-uInner);
+            float edgeFade=smoothstep(0.0,0.10,t)*smoothstep(1.0,0.90,t);
+            float bRing=smoothstep(0.0,0.06,t)*smoothstep(0.48,0.38,t);
+            float cassini=smoothstep(0.40,0.45,t)*smoothstep(0.55,0.50,t);
+            bRing*=(1.0-cassini*0.85);
+            float aRing=smoothstep(0.55,0.62,t)*smoothstep(0.98,0.88,t)*0.7;
+            float brightness=bRing+aRing;
+            float grain=fbm(vec3(vPos*40.0),3)*0.5+0.5;
+            float fineGrain=fbm(vec3(vPos*80.0+vec3(99.0)),2)*0.5+0.5;
+            brightness*=mix(0.55,1.0,grain)*mix(0.65,1.0,fineGrain);
+            float holes=fbm(vec3(vPos*55.0+vec3(42.0)),2);
+            if(holes<-0.15) brightness*=0.1;
+            vec3 col=mix(vec3(0.50,0.68,0.75),vec3(0.72,0.82,0.88),grain*0.5+t*0.5);
+            col*=brightness;
+            float alpha=clamp(brightness*0.80,0.0,0.80)*edgeFade;
+            gl_FragColor=vec4(col,alpha);
+          }
+        `,
+      });
+      materials.push(ringMat);
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = -Math.PI / 2;
+      saturnGroup.add(ringMesh);
+
+      saturnGroup.position.set(-2.0, -2.5, -2);
+      scene.add(saturnGroup);
+
+      // Saturn halo
+      const satHaloTex = glowTexture(128, [
+        [0, "rgba(180,140,60,0.28)"],
+        [0.3, "rgba(160,120,50,0.10)"],
+        [0.6, "rgba(140,100,40,0.03)"],
+        [1, "rgba(100,80,30,0)"],
+      ]);
+      const satHaloMat = new THREE.SpriteMaterial({
+        map: satHaloTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      materials.push(satHaloMat);
+      const satHalo = new THREE.Sprite(satHaloMat);
+      satHalo.scale.set(satR * 5, satR * 5, 1);
+      satHalo.position.set(-2.0, -2.5, -2.2);
+      scene.add(satHalo);
     },
 
     animate(time, dt) {
@@ -571,6 +685,8 @@ export const createVioletNebula: SceneBuilder = () => {
       (starLayer2.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
       (milkyWay.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
       animateShootingStars(shootingStars, time, dt, 1);
+      // Saturn slow rotation
+      saturnGroup.rotation.y = time * 0.015;
     },
 
     dispose() {
@@ -888,6 +1004,8 @@ export const createMoonGlow: SceneBuilder = () => {
   let shootingStars: ShootingStar[];
   let moonMesh: THREE.Mesh;
   let moonHalo: THREE.Sprite;
+  let earthMesh: THREE.Mesh;
+  let earthHalo: THREE.Sprite;
   const disposables: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
 
@@ -1096,16 +1214,19 @@ export const createMoonGlow: SceneBuilder = () => {
         scene.add(ph);
       });
 
-      // ── 3D Saturn — matching previously agreed design ──
-      const saturnGroup = new THREE.Group();
-      saturnGroup.rotation.z = 35 * Math.PI / 180; // tilt LEFT 35°
-      saturnGroup.rotation.x = 20 * Math.PI / 180;  // slight viewing angle
+      // ── 3D Earth — realistic NASA Blue Marble texture ──
+      const earthR = 0.85;
+      const earthGeo = new THREE.SphereGeometry(earthR, 64, 64);
+      disposables.push(earthGeo);
 
-      // Saturn body — warm amber/gold bands (NASA false-color reference)
-      const satR = 0.90;
-      const satGeo = new THREE.SphereGeometry(satR, 48, 48);
-      disposables.push(satGeo);
-      const satMat = new THREE.ShaderMaterial({
+      const earthTexture = new THREE.TextureLoader().load('/earth_texture.jpg');
+      earthTexture.colorSpace = THREE.SRGBColorSpace;
+
+      const earthMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTexture: { value: earthTexture },
+          uTime: { value: 0 },
+        },
         vertexShader: `
           varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
           void main(){
@@ -1116,116 +1237,49 @@ export const createMoonGlow: SceneBuilder = () => {
           }
         `,
         fragmentShader: `
-          ${NOISE_GLSL}
+          uniform sampler2D uTexture;
+          uniform float uTime;
           varying vec3 vNormal; varying vec3 vPos; varying vec2 vUv;
           void main(){
-            float y=vUv.y;
-            float warp=fbm(vec3(vPos*2.5+vec3(5.0)),3)*0.06;
-            float bandY=y+warp;
-            vec3 darkViolet=vec3(0.18,0.10,0.16);
-            vec3 amber=vec3(0.68,0.48,0.22);
-            vec3 gold=vec3(0.78,0.62,0.28);
-            vec3 deepOrange=vec3(0.55,0.32,0.14);
-            vec3 cream=vec3(0.75,0.68,0.40);
-            float b=bandY*30.0;
-            vec3 col=amber;
-            col=mix(col,gold,smoothstep(0.3,0.7,sin(b)));
-            col=mix(col,deepOrange,smoothstep(0.4,0.6,sin(b*0.6+1.0))*0.5);
-            col=mix(col,darkViolet,smoothstep(0.55,0.65,sin(b*0.35+2.0))*0.45);
-            col=mix(col,cream,smoothstep(0.7,0.9,sin(b*0.8+0.5))*0.35);
-            float coarseNoise=fbm(vec3(vPos*6.0),4)*0.12;
-            float fineNoise=fbm(vec3(vPos*18.0),3)*0.06;
-            col+=coarseNoise+fineNoise;
-            float storm=1.0-smoothstep(0.0,0.10,length(vPos.xy-vec2(0.12,-0.08)));
-            col=mix(col,vec3(0.40,0.18,0.10),storm*0.55);
-            vec3 ld=normalize(vec3(-0.5,0.3,1.0));
+            vec3 tex=texture2D(uTexture,vUv).rgb;
+            // Directional light — warm sunlight from upper-left
+            vec3 ld=normalize(vec3(-0.6,0.4,1.0));
             float NdotL=max(dot(vNormal,ld),0.0);
-            col*=0.15+NdotL*0.85;
+            // Ambient + diffuse lighting
+            vec3 col=tex*(0.12+NdotL*0.88);
+            // Subtle specular on oceans (darker/bluer areas)
+            float specular=pow(max(dot(reflect(-ld,vNormal),vec3(0,0,1)),0.0),32.0);
+            float oceanMask=1.0-smoothstep(0.25,0.45,length(tex-vec3(0.1,0.2,0.4)));
+            col+=vec3(0.3,0.4,0.6)*specular*0.15*oceanMask;
+            // Atmosphere rim glow — blue edge
             float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
-            col+=vec3(0.40,0.28,0.10)*pow(rim,3.5)*0.25;
+            col+=vec3(0.3,0.5,1.0)*pow(rim,3.0)*0.35;
+            // Thin bright atmosphere line at edge
+            col+=vec3(0.5,0.7,1.0)*pow(rim,8.0)*0.6;
             gl_FragColor=vec4(col,1.0);
           }
         `,
       });
-      materials.push(satMat);
-      const satMesh = new THREE.Mesh(satGeo, satMat);
-      saturnGroup.add(satMesh);
+      materials.push(earthMat);
+      earthMesh = new THREE.Mesh(earthGeo, earthMat);
+      earthMesh.position.set(-2.0, -2.5, -3);
+      scene.add(earthMesh);
 
-      // Ring — proper gap from planet, normal depth testing
-      const ringInner = satR * 1.4;
-      const ringOuter = satR * 2.4;
-      const ringGeo = new THREE.RingGeometry(ringInner, ringOuter, 128);
-      disposables.push(ringGeo);
-      const ringMat = new THREE.ShaderMaterial({
-        side: THREE.DoubleSide,
-        transparent: true,
-        uniforms: {
-          uInner: { value: ringInner },
-          uOuter: { value: ringOuter },
-        },
-        vertexShader: `
-          varying vec3 vPos;
-          void main(){
-            vPos=position;
-            gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
-          }
-        `,
-        fragmentShader: `
-          ${NOISE_GLSL}
-          uniform float uInner;
-          uniform float uOuter;
-          varying vec3 vPos;
-          void main(){
-            // Actual distance from center
-            float dist=length(vPos.xy);
-            float t=(dist-uInner)/(uOuter-uInner); // 0=inner edge, 1=outer edge
-            // Soft edges — fade alpha near geometry boundaries
-            float edgeFade=smoothstep(0.0,0.10,t)*smoothstep(1.0,0.90,t);
-            // Band structure
-            float bRing=smoothstep(0.0,0.06,t)*smoothstep(0.48,0.38,t);
-            float cassini=smoothstep(0.40,0.45,t)*smoothstep(0.55,0.50,t);
-            bRing*=(1.0-cassini*0.85);
-            float aRing=smoothstep(0.55,0.62,t)*smoothstep(0.98,0.88,t)*0.7;
-            float brightness=bRing+aRing;
-            // Granular debris texture
-            float grain=fbm(vec3(vPos*40.0),3)*0.5+0.5;
-            float fineGrain=fbm(vec3(vPos*80.0+vec3(99.0)),2)*0.5+0.5;
-            brightness*=mix(0.55,1.0,grain)*mix(0.65,1.0,fineGrain);
-            // Sparse debris holes
-            float holes=fbm(vec3(vPos*55.0+vec3(42.0)),2);
-            if(holes<-0.15) brightness*=0.1;
-            // Icy teal-white color
-            vec3 col=mix(vec3(0.50,0.68,0.75),vec3(0.72,0.82,0.88),grain*0.5+t*0.5);
-            col*=brightness;
-            float alpha=clamp(brightness*0.80,0.0,0.80)*edgeFade;
-            gl_FragColor=vec4(col,alpha);
-          }
-        `,
-      });
-      materials.push(ringMat);
-      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-      ringMesh.rotation.x = -Math.PI / 2;
-      saturnGroup.add(ringMesh);
-
-      // Position: lower-left, within frame
-      saturnGroup.position.set(-2.0, -2.5, -3);
-      scene.add(saturnGroup);
-
-      // Warm amber halo
-      const satHaloTex = glowTexture(128, [
-        [0, "rgba(180,140,60,0.28)"],
-        [0.3, "rgba(160,120,50,0.10)"],
-        [0.6, "rgba(140,100,40,0.03)"],
-        [1, "rgba(100,80,30,0)"],
+      // Blue-white atmosphere halo
+      const earthHaloTex = glowTexture(128, [
+        [0, "rgba(100,160,255,0.35)"],
+        [0.2, "rgba(80,140,240,0.18)"],
+        [0.5, "rgba(50,100,200,0.06)"],
+        [1, "rgba(30,60,150,0)"],
       ]);
-      const satHaloMat = new THREE.SpriteMaterial({
-        map: satHaloTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      const earthHaloMat = new THREE.SpriteMaterial({
+        map: earthHaloTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
       });
-      materials.push(satHaloMat);
-      const satHalo = new THREE.Sprite(satHaloMat);
-      satHalo.scale.set(satR * 5, satR * 5, 1);
-      satHalo.position.set(-2.0, -2.5, -3.2);
-      scene.add(satHalo);
+      materials.push(earthHaloMat);
+      earthHalo = new THREE.Sprite(earthHaloMat);
+      earthHalo.scale.set(earthR * 5, earthR * 5, 1);
+      earthHalo.position.set(-2.0, -2.5, -3.2);
+      scene.add(earthHalo);
 
       // ── 3D Moon — prominent, upper-right, BIG — real-time phase! ──
       // Calculate real moon phase from current date
@@ -1339,6 +1393,12 @@ export const createMoonGlow: SceneBuilder = () => {
       // Breathing halo
       const breathe = 1.8 * 5 * (1 + Math.sin(time * 0.2) * 0.10);
       moonHalo.scale.set(breathe, breathe, 1);
+
+      // Earth slow rotation
+      earthMesh.rotation.y = time * 0.008;
+      (earthMesh.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
+      const earthBreathe = 0.85 * 5 * (1 + Math.sin(time * 0.15) * 0.08);
+      earthHalo.scale.set(earthBreathe, earthBreathe, 1);
     },
 
     dispose() {
