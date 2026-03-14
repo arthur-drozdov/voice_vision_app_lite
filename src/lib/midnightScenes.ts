@@ -394,7 +394,8 @@ function createShootingStars(
     meteors.push({
       line, mat,
       speed,
-      angle: (rng() - 0.5) * Math.PI * 2,
+      // Avoid vertical angles: pick from [-60°,+60°] then randomly flip side
+      angle: (rng() < 0.5 ? 1 : -1) * (Math.PI * (0.05 + rng() * 0.28)),
       startX: (rng() - 0.5) * 16 * aspect,
       startY: (rng() - 0.5) * 16,
       progress: -1,
@@ -413,7 +414,8 @@ function animateShootingStars(meteors: ShootingStar[], time: number, dt: number,
         m.progress = 0;
         m.startX = (Math.random() - 0.5) * 16 * aspect;
         m.startY = (Math.random() - 0.5) * 16;
-        m.angle = (Math.random() - 0.5) * Math.PI * 2;
+        // Avoid vertical angles: pick from [-60°,+60°] then randomly flip side
+        m.angle = (Math.random() < 0.5 ? 1 : -1) * (Math.PI * (0.05 + Math.random() * 0.28));
 
         // Randomize size class on each respawn
         const sizeRoll = Math.random();
@@ -1218,7 +1220,7 @@ export const createMoonGlow: SceneBuilder = () => {
 
       // ── 3D Earth — in a separate foreground scene ──
       fgScene = new THREE.Scene();
-      const earthR = 0.85;
+      const earthR = 1.3;
       const earthGeo = new THREE.SphereGeometry(earthR, 64, 64);
       disposables.push(earthGeo);
 
@@ -1243,17 +1245,30 @@ export const createMoonGlow: SceneBuilder = () => {
           varying vec3 vNormal; varying vec2 vUv;
           void main(){
             vec3 col=texture2D(uTexture,vUv).rgb;
-            // Atmosphere rim glow
-            float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
-            col+=vec3(0.3,0.5,1.0)*pow(rim,3.0)*0.35;
-            col+=vec3(0.5,0.7,1.0)*pow(rim,8.0)*0.45;
+            // Boost texture brightness
+            col=min(col*1.5+vec3(0.1),vec3(1.0));
+            // Directional sunlight — lit from upper-left
+            vec3 sunDir=normalize(vec3(-0.6,0.4,0.7));
+            float sunLight=max(dot(vNormal,sunDir),0.0);
+            col*=0.35+sunLight*0.65;
+            // Natural limb darkening at edges
+            float facing=max(dot(vNormal,vec3(0,0,1)),0.0);
+            float limbDark=smoothstep(0.0,0.6,facing);
+            col*=mix(0.2,1.0,limbDark);
+            // Atmosphere rim glow — follows sunlight direction
+            float rim=1.0-facing;
+            float litSide=0.3+0.7*max(dot(vNormal,sunDir),0.0);
+            col+=vec3(0.25,0.45,0.9)*pow(rim,2.5)*0.30*litSide;
+            col+=vec3(0.4,0.65,1.0)*pow(rim,6.0)*0.50*litSide;
+            // Faint glow on shadow side too
+            col+=vec3(0.1,0.15,0.3)*pow(rim,4.0)*0.15;
             gl_FragColor=vec4(col,1.0);
           }
         `,
       });
       materials.push(earthMat);
       earthMesh = new THREE.Mesh(earthGeo, earthMat);
-      earthMesh.position.set(-2.0, -2.5, 0);
+      earthMesh.position.set(-2.0, -2.1, 0);
       fgScene.add(earthMesh);
 
       // Blue-white atmosphere halo
@@ -1269,7 +1284,7 @@ export const createMoonGlow: SceneBuilder = () => {
       materials.push(earthHaloMat);
       earthHalo = new THREE.Sprite(earthHaloMat);
       earthHalo.scale.set(earthR * 5, earthR * 5, 1);
-      earthHalo.position.set(-2.0, -2.5, -0.2);
+      earthHalo.position.set(-2.0, -2.1, -0.2);
       fgScene.add(earthHalo);
 
       // ── 3D Moon — prominent, upper-right, BIG — real-time phase! ──
