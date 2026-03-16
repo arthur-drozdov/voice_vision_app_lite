@@ -500,12 +500,12 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 @keyframes orbitCW {
-  from { offset-distance: 0%; }
-  to   { offset-distance: 100%; }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 @keyframes orbitCCW {
-  from { offset-distance: 100%; }
-  to   { offset-distance: 0%; }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
 }
 
 @keyframes orbitPulse {
@@ -594,13 +594,66 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   pointer-events: none;
 }
 
-/* ═══ Planet Orbit System (offset-path) ═══ */
+/* ═══ Planet Orbit System (spinning arm) ═══ */
+
+/* Orbit wrapper — positioned relative so the arm can spin */
+[data-theme="midnight"] .orbit-wrap,
+[data-theme="sunset"] .orbit-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* Dashed orbit track rail */
+[data-theme="midnight"] .orbit-wrap::after,
+[data-theme="sunset"] .orbit-wrap::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 22px;
+  border: 1px dashed var(--orbit-guide-color, hsla(262,85%,70%,0.18));
+  pointer-events: none;
+  z-index: 0;
+}
 
 /* Orbit guide colour — per-theme */
 [data-theme="midnight"] { --orbit-guide-color: hsla(262,85%,70%,0.18); }
 [data-theme="sunset"]   { --orbit-guide-color: hsla(28,80%,60%,0.35); }
 
-/* Planet base — shared border-radius + pointer-events */
+/* Spinning arm — fills the orbit-wrap, rotates around its center */
+[data-theme="midnight"] .planet-arm,
+[data-theme="sunset"] .planet-arm {
+  position: absolute;
+  inset: -10px;
+  border-radius: 22px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Planet sits at top center of the arm */
+[data-theme="midnight"] .planet,
+[data-theme="sunset"] .planet {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ── Per-planet orbit speeds ── */
+[data-theme="midnight"] .planet-arm-earth,
+[data-theme="sunset"] .planet-arm-earth     { animation: orbitCW  12s linear infinite; }
+[data-theme="midnight"] .planet-arm-saturn,
+[data-theme="sunset"] .planet-arm-saturn    { animation: orbitCW  18s linear infinite; }
+[data-theme="midnight"] .planet-arm-venus,
+[data-theme="sunset"] .planet-arm-venus     { animation: orbitCCW 10s linear infinite; }
+[data-theme="midnight"] .planet-arm-jupiter,
+[data-theme="sunset"] .planet-arm-jupiter   { animation: orbitCW   8s linear infinite; }
+[data-theme="midnight"] .planet-arm-neptune,
+[data-theme="sunset"] .planet-arm-neptune   { animation: orbitCW  25s linear infinite; }
+
+/* Planet base — shared border-radius */
 .planet {
   border-radius: 50%;
   pointer-events: none;
@@ -649,7 +702,7 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   background: radial-gradient(circle at 38% 35%, hsl(45,60%,82%), hsl(38,50%,66%) 50%, hsl(35,45%,54%));
   box-shadow: 0 0 8px hsla(45,55%,68%,0.65);
 }
-/* Saturn ring — border-only ellipse, NOT rotateX */
+/* Saturn ring */
 [data-theme="midnight"] .planet-saturn::before,
 [data-theme="sunset"] .planet-saturn::before {
   content: "";
@@ -739,9 +792,9 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   border-radius: 2px;
 }
 
-/* Non-orbit themes: hide guide and planet */
-:not([data-theme="midnight"]):not([data-theme="sunset"]) .orbit-guide,
-:not([data-theme="midnight"]):not([data-theme="sunset"]) .orbit-planet-container {
+/* Non-orbit themes: hide orbit elements */
+:not([data-theme="midnight"]):not([data-theme="sunset"]) .orbit-wrap::after,
+:not([data-theme="midnight"]):not([data-theme="sunset"]) .planet-arm {
   display: none;
 }
 
