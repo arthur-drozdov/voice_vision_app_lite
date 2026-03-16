@@ -667,46 +667,45 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 [data-theme="sunset"] .planet-earth {
   width: 14px;
   height: 14px;
-  background: url('/planets/earth.png') center/cover no-repeat;
-  box-shadow: 0 0 6px hsla(210,80%,60%,0.7), 0 0 14px hsla(210,75%,55%,0.35);
-}
-/* Earth atmosphere ring */
-[data-theme="midnight"] .planet-earth::after,
-[data-theme="sunset"] .planet-earth::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  border: 1px solid hsla(200,50%,80%,0.25);
+  background:
+    radial-gradient(circle at 35% 30%, hsla(200,90%,85%,0.5) 0%, transparent 40%),
+    radial-gradient(circle at 60% 65%, hsl(133,45%,35%) 0%, transparent 50%),
+    radial-gradient(circle at 30% 55%, hsl(133,40%,40%) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, hsl(210,75%,50%) 0%, hsl(210,85%,35%) 100%);
+  box-shadow: 0 0 6px hsla(210,80%,60%,0.7), 0 0 12px hsla(210,75%,55%,0.3);
 }
 
-/* ── Saturn (12px body) — Chat page ── */
+/* ── Saturn (14px incl ring) — Chat page ── */
 [data-theme="midnight"] .planet-saturn,
 [data-theme="sunset"] .planet-saturn {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   position: relative;
-  background: url('/planets/saturn.png') center/cover no-repeat;
-  box-shadow: 0 0 8px hsla(45,55%,68%,0.65);
+  background:
+    radial-gradient(circle at 38% 32%, hsla(48,70%,90%,0.6) 0%, transparent 35%),
+    linear-gradient(180deg,
+      hsl(42,55%,78%) 0%, hsl(38,50%,68%) 25%,
+      hsl(35,45%,62%) 50%, hsl(40,50%,70%) 75%,
+      hsl(42,55%,75%) 100%);
+  box-shadow: 0 0 7px hsla(45,55%,68%,0.6);
   transform: rotate(-12deg);
 }
-/* Saturn ring */
+/* Saturn ring — CSS ellipse border */
 [data-theme="midnight"] .planet-saturn::before,
 [data-theme="sunset"] .planet-saturn::before {
   content: "";
   position: absolute;
-  top: 2px;
-  left: -8px;
+  top: 3px;
+  left: -7px;
   width: 28px;
   height: 8px;
   border-radius: 50%;
-  border-top: 2px solid hsla(47,72%,78%, 0.94);
-  border-bottom: 1.5px solid hsla(42,65%,62%, 0.72);
-  border-left: 1.5px solid hsla(44,68%,70%, 0.58);
-  border-right: 1.5px solid hsla(44,68%,70%, 0.58);
+  border-top: 1.5px solid hsla(47,72%,78%, 0.9);
+  border-bottom: 1px solid hsla(42,65%,62%, 0.6);
+  border-left: 1px solid hsla(44,68%,70%, 0.4);
+  border-right: 1px solid hsla(44,68%,70%, 0.4);
   background: transparent;
-  box-shadow: 0 0 6px hsla(46,68%,72%, 0.45);
-  transform: rotate(-8deg);
+  box-shadow: 0 0 4px hsla(46,68%,72%, 0.35);
 }
 
 /* ── Venus (12px) — Canvas page ── */
@@ -714,17 +713,10 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 [data-theme="sunset"] .planet-venus {
   width: 12px;
   height: 12px;
-  background: url('/planets/venus.png') center/cover no-repeat;
-  box-shadow: 0 0 10px hsla(50,70%,72%,0.70), 0 0 20px hsla(50,65%,65%,0.35);
-}
-/* Venus thick atmosphere */
-[data-theme="midnight"] .planet-venus::after,
-[data-theme="sunset"] .planet-venus::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background: radial-gradient(circle, transparent 55%, hsla(50,60%,75%,0.15) 100%);
+  background:
+    radial-gradient(circle at 38% 30%, hsla(52,80%,92%,0.7) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, hsl(50,65%,80%) 0%, hsl(44,60%,65%) 60%, hsl(38,55%,52%) 100%);
+  box-shadow: 0 0 8px hsla(50,70%,72%,0.6), 0 0 16px hsla(50,65%,65%,0.25);
 }
 
 /* ── Jupiter (15px) — Video page ── */
@@ -732,15 +724,16 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 [data-theme="sunset"] .planet-jupiter {
   width: 15px;
   height: 15px;
-  overflow: hidden;
-  background: url('/planets/jupiter.png') center/cover no-repeat;
-  box-shadow: 0 0 8px hsla(30,60%,65%,0.60);
+  background:
+    radial-gradient(circle at 36% 30%, hsla(40,70%,88%,0.45) 0%, transparent 35%),
+    radial-gradient(ellipse 5px 3px at 55% 58%, hsla(8,65%,48%,0.6) 0%, transparent 100%),
+    linear-gradient(180deg,
+      hsl(38,60%,76%) 0%, hsl(30,52%,64%) 18%,
+      hsl(40,58%,72%) 32%, hsl(24,48%,58%) 46%,
+      hsl(34,55%,70%) 58%, hsl(28,46%,62%) 72%,
+      hsl(38,60%,74%) 86%, hsl(30,52%,66%) 100%);
+  box-shadow: 0 0 7px hsla(30,60%,65%,0.55);
   position: relative;
-}
-/* Jupiter Great Red Spot — no longer needed with texture, kept for extra depth */
-[data-theme="midnight"] .planet-jupiter::after,
-[data-theme="sunset"] .planet-jupiter::after {
-  content: none;
 }
 
 /* ── Neptune (11px) — Customise page ── */
@@ -748,14 +741,11 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 [data-theme="sunset"] .planet-neptune {
   width: 11px;
   height: 11px;
-  background: url('/planets/neptune.png') center/cover no-repeat;
-  box-shadow: 0 0 9px hsla(225,80%,65%,0.72), 0 0 18px hsla(225,78%,58%,0.35);
+  background:
+    radial-gradient(circle at 36% 30%, hsla(220,85%,80%,0.5) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, hsl(225,80%,58%) 0%, hsl(222,78%,42%) 55%, hsl(218,72%,32%) 100%);
+  box-shadow: 0 0 8px hsla(225,80%,65%,0.65), 0 0 16px hsla(225,78%,58%,0.3);
   position: relative;
-}
-/* Neptune storm band — no longer needed with texture */
-[data-theme="midnight"] .planet-neptune::after,
-[data-theme="sunset"] .planet-neptune::after {
-  content: none;
 }
 
 /* Non-orbit themes: hide orbit elements */
