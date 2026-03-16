@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { getSelectedWallpaper, getPresetById } from "@/lib/wallpaperPresets";
 import { getSelectedMidnightWallpaper, getMidnightPresetById } from "@/lib/midnightWallpaperPresets";
+import { getSelectedSunsetWallpaper, getSunsetPresetById } from "@/lib/sunsetWallpaperPresets";
 import MidnightThreeCanvas from "@/components/MidnightThreeCanvas";
+import SunsetCanvas from "@/components/SunsetCanvas";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -248,8 +250,8 @@ const MidnightBg = () => {
 
       {/* ── CSS Overlay Layers — per-subtheme visibility ── */}
 
-      {/* Constellation dot grid — hide on lavender-mist (has own grid) and violet-nebula (too busy) and moon-phases */}
-      {presetId !== "lavender-mist" && presetId !== "violet-nebula" && presetId !== "moon-phases" && (
+      {/* Constellation dot grid — hide on lavender-mist (has own grid) and violet-nebula (too busy) and moon-phases and moon-glow */}
+      {presetId !== "lavender-mist" && presetId !== "violet-nebula" && presetId !== "moon-phases" && presetId !== "moon-glow" && (
         <div
           className="midnight-constellation-grid"
           style={{
@@ -393,61 +395,71 @@ const ForestBg = () => (
   </>
 );
 
-// ─── Sunset: Carnelian ─────────────────────────────────────────────────────────
-// Warm amber fluid with deep crimson and molten-gold veins.
-const SunsetBg = () => (
-  <>
-    {/* Primary amber fluid mass */}
-    <Blob style={{
-      width: "152vw", height: "115vw",
-      bottom: "-35%", left: "-30%",
-      borderRadius: "48% 52% 55% 45% / 52% 48% 52% 48%",
-      background: "radial-gradient(ellipse 52% 46% at 48% 52%, hsl(28 90% 38% / 0.78) 0%, hsl(18 72% 22% / 0.48) 46%, transparent 70%)",
-      filter: "blur(52px)",
-      animation: "theme-marble-drift 34s ease-in-out infinite",
-    }} />
+// ─── Sunset: Van Gogh Canvas 2D wallpaper preset system ───────────────────────
 
-    {/* Crimson tendril */}
-    <Blob style={{
-      width: "112vw", height: "88vw",
-      top: "-20%", right: "-24%",
-      borderRadius: "52% 48% 45% 55% / 50% 52% 48% 50%",
-      background: "radial-gradient(ellipse 50% 52% at 52% 48%, hsl(350 80% 36% / 0.68) 0%, hsl(338 56% 22% / 0.40) 50%, transparent 70%)",
-      filter: "blur(60px)",
-      animation: "theme-marble-drift 42s ease-in-out infinite reverse 9s",
-    }} />
+const SunsetBg = () => {
+  const [presetId, setPresetId] = useState(getSelectedSunsetWallpaper);
 
-    {/* Golden highlight pool */}
-    <Blob style={{
-      width: "52vw", height: "34vw",
-      top: "34%", left: "26%",
-      borderRadius: "50%",
-      background: "radial-gradient(ellipse, hsl(45 96% 62% / 0.34) 0%, transparent 65%)",
-      filter: "blur(28px)",
-      animation: "theme-marble-drift 58s ease-in-out infinite 16s",
-    }} />
+  useEffect(() => {
+    const handler = () => setPresetId(getSelectedSunsetWallpaper());
+    window.addEventListener("wallpaperchange", handler);
+    return () => window.removeEventListener("wallpaperchange", handler);
+  }, []);
 
-    {/* Gold vein */}
-    <Vein style={{
-      width: "160%", height: "102px",
-      top: "32%", left: "-28%",
-      transform: "rotate(-7deg)",
-      background: "linear-gradient(to right, transparent 0%, hsl(45 96% 72% / 0.15) 32%, hsl(45 96% 88% / 0.24) 52%, hsl(45 96% 72% / 0.12) 72%, transparent 100%)",
-      filter: "blur(7px)",
-      animation: "theme-sunset-pulse 14s ease-in-out infinite 4s",
-    }} />
+  const preset = useMemo(() => getSunsetPresetById(presetId), [presetId]);
 
-    {/* Crimson vein */}
-    <Vein style={{
-      width: "132%", height: "76px",
-      bottom: "36%", right: "-16%",
-      transform: "rotate(9deg)",
-      background: "linear-gradient(to left, transparent 0%, hsl(350 84% 68% / 0.16) 38%, hsl(350 84% 82% / 0.14) 60%, transparent 100%)",
-      filter: "blur(5px)",
-      animation: "theme-sunset-pulse 20s ease-in-out infinite 7s",
-    }} />
-  </>
-);
+  // Apply CSS variable overrides for this wallpaper preset
+  useEffect(() => {
+    const root = document.documentElement;
+    const currentTheme = root.dataset.theme;
+    if (currentTheme !== "sunset") return;
+    if (!preset) return;
+
+    if (preset.glassColor) {
+      root.style.setProperty("--surface-glass", preset.glassColor);
+      root.style.setProperty("--popover", preset.glassColor);
+      root.style.setProperty("--card", preset.glassColor);
+    }
+    if (preset.accentColor) {
+      root.style.setProperty("--secondary", preset.accentColor.secondary);
+      root.style.setProperty("--input", preset.accentColor.input);
+      root.style.setProperty("--border", preset.accentColor.border);
+      if (preset.accentColor.primary) {
+        root.style.setProperty("--primary", preset.accentColor.primary);
+        root.style.setProperty("--ring", preset.accentColor.primary);
+        root.style.setProperty("--glow-primary", preset.accentColor.primary);
+      }
+    }
+    if (preset.greetingGradient) {
+      root.style.setProperty("--greeting-start", preset.greetingGradient.start);
+      root.style.setProperty("--greeting-mid", preset.greetingGradient.mid);
+      root.style.setProperty("--greeting-end", preset.greetingGradient.end);
+    }
+    if (preset.bubbleColors) {
+      root.style.setProperty("--bubble-ai-start", preset.bubbleColors.aiStart);
+      root.style.setProperty("--bubble-ai-end", preset.bubbleColors.aiEnd);
+      root.style.setProperty("--bubble-user-start", preset.bubbleColors.userStart);
+      root.style.setProperty("--bubble-user-end", preset.bubbleColors.userEnd);
+    }
+  }, [preset]);
+
+  if (!preset) {
+    return (
+      <div className="absolute inset-0" style={{
+        background: "linear-gradient(180deg, hsl(15,25%,13%) 0%, hsl(18,22%,19%) 50%, hsl(15,25%,13%) 100%)",
+      }} />
+    );
+  }
+
+  return (
+    <>
+      {/* Base gradient fallback */}
+      <div className="absolute inset-0" style={{ background: preset.base }} />
+      {/* Canvas 2D Van Gogh painting */}
+      <SunsetCanvas presetId={presetId} />
+    </>
+  );
+};
 
 // ─── Ocean: Larimar ────────────────────────────────────────────────────────────
 // Deep Caribbean teal with luminous cyan iridescence.

@@ -1365,7 +1365,7 @@ export const createMoonGlow: SceneBuilder = () => {
       });
       materials.push(moonMat);
       moonMesh = new THREE.Mesh(moonGeo, moonMat);
-      moonMesh.position.set(2.0, 2.2, 0);
+      moonMesh.position.set(2.0, 2.5, 0);
       scene.add(moonMesh);
 
       // Moon halo — large violet glow
@@ -1383,7 +1383,7 @@ export const createMoonGlow: SceneBuilder = () => {
       materials.push(haloMat);
       moonHalo = new THREE.Sprite(haloMat);
       moonHalo.scale.set(haloSize, haloSize, 1);
-      moonHalo.position.set(2.0, 2.2, -0.3);
+      moonHalo.position.set(2.0, 2.5, -0.3);
       scene.add(moonHalo);
 
       shootingStars = createShootingStars(3, aspect, 99, scene, disposables, materials);
