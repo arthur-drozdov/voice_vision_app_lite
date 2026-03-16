@@ -13,7 +13,7 @@
  *   </OrbitWrap>
  */
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useId } from "react";
 
 export type PlanetName = "earth" | "saturn" | "venus" | "jupiter" | "neptune";
 
@@ -35,11 +35,6 @@ const ORBIT_CW: Record<PlanetName, boolean> = {
   neptune: true,
 };
 
-/** Build an SVG rounded-rect path for offset-path */
-function buildRRectPath(w: number, h: number, r: number): string {
-  return `path('M ${r},0 H ${w - r} A ${r},${r} 0 0,1 ${w},${r} V ${h - r} A ${r},${r} 0 0,1 ${w - r},${h} H ${r} A ${r},${r} 0 0,1 0,${h - r} V ${r} A ${r},${r} 0 0,1 ${r},0 Z')`;
-}
-
 interface OrbitWrapProps {
   planet: PlanetName;
   children: React.ReactNode;
@@ -47,96 +42,119 @@ interface OrbitWrapProps {
 }
 
 const OrbitWrap: React.FC<OrbitWrapProps> = ({ planet, children, className = "" }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const planetRef = useRef<HTMLDivElement>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
+  const styleRef = useRef<HTMLStyleElement | null>(null);
+  const uid = useId().replace(/:/g, "");
+
+  const PADDING = 8;
+  const CARD_R = 10;
+  const PATH_R = CARD_R + PADDING;
 
   const measure = useCallback(() => {
-    if (!containerRef.current) return;
-    const child = containerRef.current.querySelector("[data-glass-variant]") as HTMLElement;
-    if (!child) {
-      // Fallback: measure the container itself
-      const rect = containerRef.current.getBoundingClientRect();
-      setDims({ w: rect.width, h: rect.height });
-    } else {
-      const rect = child.getBoundingClientRect();
-      setDims({ w: rect.width, h: rect.height });
+    const wrap = wrapRef.current;
+    const planetEl = planetRef.current;
+    const guideEl = guideRef.current;
+    if (!wrap || !planetEl || !guideEl) return;
+
+    // Find the GlassContainer child
+    const card = wrap.querySelector("[data-glass-variant]") as HTMLElement | null;
+    const target = card || wrap;
+    const rect = target.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    if (w === 0 || h === 0) return;
+
+    // Orbit path dims
+    const pathW = w + PADDING * 2;
+    const pathH = h + PADDING * 2;
+
+    // Update guide
+    guideEl.style.width = `${pathW}px`;
+    guideEl.style.height = `${pathH}px`;
+    guideEl.style.borderRadius = `${PATH_R}px`;
+
+    // Build SVG rounded-rect path
+    const r = PATH_R;
+    const svgPath = `M ${r},0 H ${pathW - r} A ${r},${r} 0 0,1 ${pathW},${r} V ${pathH - r} A ${r},${r} 0 0,1 ${pathW - r},${pathH} H ${r} A ${r},${r} 0 0,1 0,${pathH - r} V ${r} A ${r},${r} 0 0,1 ${r},0 Z`;
+
+    // Inject dynamic <style> with offset-path (avoids React inline style issues)
+    const dur = ORBIT_DURATION[planet];
+    const cw = ORBIT_CW[planet];
+    const animName = cw ? "orbitCW" : "orbitCCW";
+    const cls = `orbit-planet-${uid}`;
+
+    planetEl.className = `planet planet-${planet} ${cls}`;
+
+    if (!styleRef.current) {
+      styleRef.current = document.createElement("style");
+      document.head.appendChild(styleRef.current);
     }
-  }, []);
+
+    styleRef.current.textContent = `
+      .${cls} {
+        position: absolute;
+        top: 0;
+        left: 0;
+        offset-path: path('${svgPath}');
+        offset-anchor: 50% 50%;
+        offset-rotate: 0deg;
+        animation: ${animName} ${dur}s linear infinite;
+        pointer-events: none;
+      }
+    `;
+  }, [planet, uid, PADDING, PATH_R]);
 
   useEffect(() => {
-    // Measure after render + a small delay for layout
-    const timer = setTimeout(measure, 50);
+    const timer = setTimeout(measure, 80);
     const ro = new ResizeObserver(measure);
-    if (containerRef.current) ro.observe(containerRef.current);
+    if (wrapRef.current) ro.observe(wrapRef.current);
     return () => {
       clearTimeout(timer);
       ro.disconnect();
+      // Clean up injected style
+      if (styleRef.current) {
+        styleRef.current.remove();
+        styleRef.current = null;
+      }
     };
   }, [measure]);
 
-  const borderRadius = 10; // matches GlassContainer's border-radius
-  const padding = 8; // how far outside the card edge the orbit sits
-  const dur = ORBIT_DURATION[planet];
-  const cw = ORBIT_CW[planet];
-
-  // Orbit path dimensions = card + padding on each side
-  const pathW = dims ? dims.w + padding * 2 : 0;
-  const pathH = dims ? dims.h + padding * 2 : 0;
-  const pathR = borderRadius + padding;
-
-  const offsetPath = dims ? buildRRectPath(pathW, pathH, pathR) : "";
-
   return (
-    <div ref={containerRef} className={`orbit-wrap ${className}`} style={{ position: "relative", zIndex: 1 }}>
+    <div ref={wrapRef} className={`orbit-wrap ${className}`} style={{ position: "relative", zIndex: 1 }}>
       {children}
 
-      {dims && (
-        <>
-          {/* Dashed orbit guide */}
-          <div
-            className="orbit-guide"
-            style={{
-              position: "absolute",
-              top: -padding,
-              left: -padding,
-              width: pathW,
-              height: pathH,
-              borderRadius: pathR,
-              border: "1px dashed var(--orbit-guide-color, hsla(262,85%,70%,0.18))",
-              pointerEvents: "none",
-              zIndex: 0,
-            }}
-          />
+      {/* Dashed orbit guide */}
+      <div
+        ref={guideRef}
+        className="orbit-guide"
+        style={{
+          position: "absolute",
+          top: -PADDING,
+          left: -PADDING,
+          border: "1px dashed var(--orbit-guide-color, hsla(262,85%,70%,0.18))",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
 
-          {/* Planet — follows the rounded-rect path */}
-          <div
-            className="orbit-planet-container"
-            style={{
-              position: "absolute",
-              top: -padding,
-              left: -padding,
-              width: 0,
-              height: 0,
-              pointerEvents: "none",
-              zIndex: 3,
-            }}
-          >
-            <div
-              className={`planet planet-${planet}`}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                offsetPath,
-                offsetAnchor: "50% 50%",
-                offsetRotate: "0deg",
-                animation: `${cw ? "orbitCW" : "orbitCCW"} ${dur}s linear infinite`,
-                pointerEvents: "none",
-              } as React.CSSProperties}
-            />
-          </div>
-        </>
-      )}
+      {/* Planet anchor — positioned at top-left of orbit area */}
+      <div
+        className="orbit-planet-container"
+        style={{
+          position: "absolute",
+          top: -PADDING,
+          left: -PADDING,
+          width: 0,
+          height: 0,
+          pointerEvents: "none",
+          zIndex: 3,
+          overflow: "visible",
+        }}
+      >
+        <div ref={planetRef} className={`planet planet-${planet}`} />
+      </div>
     </div>
   );
 };
