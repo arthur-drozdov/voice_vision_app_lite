@@ -6,6 +6,7 @@
  * the actual border of the card.
  *
  * Only visible when the active theme supports orbits (Midnight, Sunset).
+ * On other themes, CSS hides the guide and planet via .orbit-guide / .orbit-planet-container selectors.
  *
  * Usage:
  *   <OrbitWrap planet="earth">
@@ -13,7 +14,7 @@
  *   </OrbitWrap>
  */
 
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect } from "react";
 
 export type PlanetName = "earth" | "saturn" | "venus" | "jupiter" | "neptune";
 
@@ -41,8 +42,8 @@ interface OrbitWrapProps {
   className?: string;
 }
 
-const PADDING = 8;
-const CARD_R = 10;
+const PADDING = 8;   // orbit guide sits this far outside the card
+const CARD_R = 10;   // GlassContainer border-radius
 const PATH_R = CARD_R + PADDING;
 
 const OrbitWrap: React.FC<OrbitWrapProps> = ({ planet, children, className = "" }) => {
@@ -50,69 +51,71 @@ const OrbitWrap: React.FC<OrbitWrapProps> = ({ planet, children, className = "" 
   const planetRef = useRef<HTMLDivElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
 
-  const measure = useCallback(() => {
+  useEffect(() => {
     const wrap = wrapRef.current;
     const planetEl = planetRef.current;
     const guideEl = guideRef.current;
     if (!wrap || !planetEl || !guideEl) return;
 
-    // Find the GlassContainer child, fallback to wrap itself
-    const card = wrap.querySelector("[data-glass-variant]") as HTMLElement | null;
-    const rect = (card || wrap).getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-    if (w < 10 || h < 10) return; // not laid out yet
+    let rafId: number;
+    let roCleanup: (() => void) | null = null;
 
-    // Orbit path dims = card + padding on each side
-    const pathW = w + PADDING * 2;
-    const pathH = h + PADDING * 2;
+    const apply = () => {
+      // Find the GlassContainer child, fallback to wrap
+      const card = wrap.querySelector("[data-glass-variant]") as HTMLElement | null;
+      const rect = (card || wrap).getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      if (w < 10 || h < 10) {
+        // Not laid out yet — try again next frame
+        rafId = requestAnimationFrame(apply);
+        return;
+      }
 
-    // Update orbit guide
-    guideEl.style.width = `${pathW}px`;
-    guideEl.style.height = `${pathH}px`;
-    guideEl.style.borderRadius = `${PATH_R}px`;
-    guideEl.style.display = "";
+      const pathW = w + PADDING * 2;
+      const pathH = h + PADDING * 2;
+      const r = PATH_R;
 
-    // Build SVG rounded-rect path
-    const r = PATH_R;
-    const svgPath = `M ${r},0 H ${pathW - r} A ${r},${r} 0 0,1 ${pathW},${r} V ${pathH - r} A ${r},${r} 0 0,1 ${pathW - r},${pathH} H ${r} A ${r},${r} 0 0,1 0,${pathH - r} V ${r} A ${r},${r} 0 0,1 ${r},0 Z`;
+      // Update orbit guide dimensions
+      guideEl.style.width = `${pathW}px`;
+      guideEl.style.height = `${pathH}px`;
+      guideEl.style.borderRadius = `${r}px`;
 
-    // Apply offset-path directly on the DOM node (React inline styles don't handle these)
-    const dur = ORBIT_DURATION[planet];
-    const cw = ORBIT_CW[planet];
-    const animName = cw ? "orbitCW" : "orbitCCW";
+      // Build SVG rounded-rect path
+      const svgPath = `M ${r},0 H ${pathW - r} A ${r},${r} 0 0,1 ${pathW},${r} V ${pathH - r} A ${r},${r} 0 0,1 ${pathW - r},${pathH} H ${r} A ${r},${r} 0 0,1 0,${pathH - r} V ${r} A ${r},${r} 0 0,1 ${r},0 Z`;
 
-    planetEl.style.setProperty("offset-path", `path('${svgPath}')`);
-    planetEl.style.setProperty("offset-anchor", "50% 50%");
-    planetEl.style.setProperty("offset-rotate", "0deg");
-    planetEl.style.setProperty("animation", `${animName} ${dur}s linear infinite`);
-    planetEl.style.setProperty("position", "absolute");
-    planetEl.style.setProperty("top", "0");
-    planetEl.style.setProperty("left", "0");
-    planetEl.style.setProperty("pointer-events", "none");
+      // Apply offset-path directly via setProperty
+      const dur = ORBIT_DURATION[planet];
+      const cw = ORBIT_CW[planet];
 
-    // Make planet container visible
-    planetEl.parentElement!.style.display = "";
-  }, [planet]);
-
-  useEffect(() => {
-    // Measure after layout settles
-    const t1 = setTimeout(measure, 60);
-    const t2 = setTimeout(measure, 200); // fallback for slow layouts
-    const ro = new ResizeObserver(measure);
-    if (wrapRef.current) ro.observe(wrapRef.current);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      ro.disconnect();
+      planetEl.style.setProperty("offset-path", `path('${svgPath}')`);
+      planetEl.style.setProperty("offset-anchor", "50% 50%");
+      planetEl.style.setProperty("offset-rotate", "0deg");
+      planetEl.style.setProperty("animation", `${cw ? "orbitCW" : "orbitCCW"} ${dur}s linear infinite`);
     };
-  }, [measure]);
+
+    // Use rAF to wait for layout
+    rafId = requestAnimationFrame(apply);
+
+    // Also re-measure on resize
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(apply);
+    });
+    ro.observe(wrap);
+    roCleanup = () => ro.disconnect();
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      roCleanup?.();
+    };
+  }, [planet]);
 
   return (
     <div ref={wrapRef} className={`orbit-wrap ${className}`} style={{ position: "relative", zIndex: 1 }}>
       {children}
 
-      {/* Dashed orbit guide */}
+      {/* Dashed orbit guide — sits PADDING px outside the card */}
       <div
         ref={guideRef}
         className="orbit-guide"
@@ -120,14 +123,15 @@ const OrbitWrap: React.FC<OrbitWrapProps> = ({ planet, children, className = "" 
           position: "absolute",
           top: -PADDING,
           left: -PADDING,
+          width: 0,
+          height: 0,
           border: "1px dashed var(--orbit-guide-color, hsla(262,85%,70%,0.18))",
           pointerEvents: "none",
           zIndex: 0,
-          display: "none", // hidden until measured
         }}
       />
 
-      {/* Planet container — positioned at orbit origin */}
+      {/* Planet anchor — absolute at orbit origin, overflow visible */}
       <div
         className="orbit-planet-container"
         style={{
@@ -139,10 +143,18 @@ const OrbitWrap: React.FC<OrbitWrapProps> = ({ planet, children, className = "" 
           pointerEvents: "none",
           zIndex: 3,
           overflow: "visible",
-          display: "none", // hidden until measured
         }}
       >
-        <div ref={planetRef} className={`planet planet-${planet}`} />
+        <div
+          ref={planetRef}
+          className={`planet planet-${planet}`}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        />
       </div>
     </div>
   );
