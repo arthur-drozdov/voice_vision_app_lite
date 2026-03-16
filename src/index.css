@@ -601,6 +601,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 [data-theme="sunset"] .orbit-wrap {
   position: relative;
   z-index: 1;
+  overflow: visible;
+  display: inline-block;
 }
 
 /* Dashed orbit track rail */
@@ -627,6 +629,7 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   border-radius: 22px;
   pointer-events: none;
   z-index: 2;
+  overflow: visible;
 }
 
 /* Planet sits at top center of the arm */
