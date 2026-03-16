@@ -721,7 +721,7 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
   border-right: 1.5px solid hsla(44,68%,70%, 0.58);
   background: transparent;
   box-shadow: 0 0 6px hsla(46,68%,72%, 0.45);
-  transform: rotate(-8deg);
+  transform: rotate(-15deg);
 }
 
 /* ── Venus (12px) — Canvas page ── */
