@@ -28,7 +28,13 @@ const ORBIT_CFG: Record<PlanetName, { dur: number; ccw: boolean }> = {
 
 function isOrbitTheme(): boolean {
   const t = document.documentElement.dataset.theme;
-  return t === "midnight" || t === "sunset";
+  if (t === "sunset") return true;
+  if (t === "midnight") {
+    // Only show on Violet Nebula wallpaper
+    const wp = localStorage.getItem("voicevision_bg_midnight") || "celestial-map";
+    return wp === "violet-nebula";
+  }
+  return false;
 }
 
 // Inject offset-distance keyframes once globally
