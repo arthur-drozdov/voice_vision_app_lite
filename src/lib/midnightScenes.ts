@@ -663,7 +663,7 @@ export const createVioletNebula: SceneBuilder = () => {
       ringMesh.rotation.x = -Math.PI / 2;
       saturnGroup.add(ringMesh);
 
-      saturnGroup.position.set(-2.0, -2.5, -2);
+      saturnGroup.position.set(-2.0, -2.1, -2);
       scene.add(saturnGroup);
 
       // Saturn halo
@@ -679,7 +679,7 @@ export const createVioletNebula: SceneBuilder = () => {
       materials.push(satHaloMat);
       const satHalo = new THREE.Sprite(satHaloMat);
       satHalo.scale.set(satR * 5, satR * 5, 1);
-      satHalo.position.set(-2.0, -2.5, -2.2);
+      satHalo.position.set(-2.0, -2.1, -2.2);
       scene.add(satHalo);
     },
 
