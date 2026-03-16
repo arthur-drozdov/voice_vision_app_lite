@@ -678,8 +678,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 /* ── Saturn (14px incl ring) — Chat page ── */
 [data-theme="midnight"] .planet-saturn,
 [data-theme="sunset"] .planet-saturn {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   position: relative;
   background:
     radial-gradient(circle at 38% 32%, hsla(48,70%,90%,0.6) 0%, transparent 35%),

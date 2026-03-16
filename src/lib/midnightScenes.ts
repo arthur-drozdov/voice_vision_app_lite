@@ -573,7 +573,7 @@ export const createVioletNebula: SceneBuilder = () => {
       saturnGroup.rotation.z = 35 * Math.PI / 180;
       saturnGroup.rotation.x = 20 * Math.PI / 180;
 
-      const satR = 0.90;
+      const satR = 1.35;
       const satGeo = new THREE.SphereGeometry(satR, 48, 48);
       disposables.push(satGeo);
       const satMat = new THREE.ShaderMaterial({
@@ -593,17 +593,18 @@ export const createVioletNebula: SceneBuilder = () => {
             float y=vUv.y;
             float warp=fbm(vec3(vPos*2.5+vec3(5.0)),3)*0.06;
             float bandY=y+warp;
-            vec3 darkViolet=vec3(0.18,0.10,0.16);
-            vec3 amber=vec3(0.68,0.48,0.22);
-            vec3 gold=vec3(0.78,0.62,0.28);
-            vec3 deepOrange=vec3(0.55,0.32,0.14);
-            vec3 cream=vec3(0.75,0.68,0.40);
+            // NASA Cassini false-color palette — violet/teal/lavender
+            vec3 deepViolet=vec3(0.22,0.10,0.30);
+            vec3 midPurple=vec3(0.42,0.24,0.52);
+            vec3 tealBand=vec3(0.18,0.42,0.48);
+            vec3 lavender=vec3(0.55,0.45,0.68);
+            vec3 dustyRose=vec3(0.52,0.32,0.40);
             float b=bandY*30.0;
-            vec3 col=amber;
-            col=mix(col,gold,smoothstep(0.3,0.7,sin(b)));
-            col=mix(col,deepOrange,smoothstep(0.4,0.6,sin(b*0.6+1.0))*0.5);
-            col=mix(col,darkViolet,smoothstep(0.55,0.65,sin(b*0.35+2.0))*0.45);
-            col=mix(col,cream,smoothstep(0.7,0.9,sin(b*0.8+0.5))*0.35);
+            vec3 col=midPurple;
+            col=mix(col,lavender,smoothstep(0.3,0.7,sin(b)));
+            col=mix(col,tealBand,smoothstep(0.4,0.6,sin(b*0.6+1.0))*0.5);
+            col=mix(col,deepViolet,smoothstep(0.55,0.65,sin(b*0.35+2.0))*0.45);
+            col=mix(col,dustyRose,smoothstep(0.7,0.9,sin(b*0.8+0.5))*0.35);
             float coarseNoise=fbm(vec3(vPos*6.0),4)*0.12;
             float fineNoise=fbm(vec3(vPos*18.0),3)*0.06;
             col+=coarseNoise+fineNoise;
@@ -613,7 +614,7 @@ export const createVioletNebula: SceneBuilder = () => {
             float NdotL=max(dot(vNormal,ld),0.0);
             col*=0.15+NdotL*0.85;
             float rim=1.0-max(dot(vNormal,vec3(0,0,1)),0.0);
-            col+=vec3(0.40,0.28,0.10)*pow(rim,3.5)*0.25;
+            col+=vec3(0.35,0.22,0.50)*pow(rim,3.5)*0.30;
             gl_FragColor=vec4(col,1.0);
           }
         `,
@@ -650,7 +651,7 @@ export const createVioletNebula: SceneBuilder = () => {
             brightness*=mix(0.55,1.0,grain)*mix(0.65,1.0,fineGrain);
             float holes=fbm(vec3(vPos*55.0+vec3(42.0)),2);
             if(holes<-0.15) brightness*=0.1;
-            vec3 col=mix(vec3(0.50,0.68,0.75),vec3(0.72,0.82,0.88),grain*0.5+t*0.5);
+            vec3 col=mix(vec3(0.40,0.45,0.65),vec3(0.60,0.55,0.75),grain*0.5+t*0.5);
             col*=brightness;
             float alpha=clamp(brightness*0.80,0.0,0.80)*edgeFade;
             gl_FragColor=vec4(col,alpha);
@@ -667,10 +668,10 @@ export const createVioletNebula: SceneBuilder = () => {
 
       // Saturn halo
       const satHaloTex = glowTexture(128, [
-        [0, "rgba(180,140,60,0.28)"],
-        [0.3, "rgba(160,120,50,0.10)"],
-        [0.6, "rgba(140,100,40,0.03)"],
-        [1, "rgba(100,80,30,0)"],
+        [0, "rgba(140,100,180,0.28)"],
+        [0.3, "rgba(120,80,160,0.10)"],
+        [0.6, "rgba(100,70,140,0.03)"],
+        [1, "rgba(80,50,120,0)"],
       ]);
       const satHaloMat = new THREE.SpriteMaterial({
         map: satHaloTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
