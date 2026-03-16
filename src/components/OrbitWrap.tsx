@@ -19,11 +19,11 @@ export type PlanetName = "earth" | "saturn" | "venus" | "jupiter" | "neptune";
 
 /* Per-planet orbit config */
 const ORBIT_CFG: Record<PlanetName, { dur: number; ccw: boolean }> = {
-  earth:   { dur: 12, ccw: false },
+  earth:   { dur: 18, ccw: false },
   saturn:  { dur: 18, ccw: false },
-  venus:   { dur: 10, ccw: true  },
-  jupiter: { dur: 8,  ccw: false },
-  neptune: { dur: 25, ccw: false },
+  venus:   { dur: 18, ccw: true  },
+  jupiter: { dur: 18, ccw: false },
+  neptune: { dur: 18, ccw: false },
 };
 
 function isOrbitTheme(): boolean {
