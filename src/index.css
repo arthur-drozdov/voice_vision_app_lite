@@ -1012,6 +1012,16 @@ td, th, blockquote, figcaption, summary, legend {
 /* Per-page ::before overlays removed — ThemeBackground handles all backgrounds.
    No per-theme page backgrounds are needed. */
 
+/* Make sure content sits above the background layer */
+.page-home > *,
+.page-chat > *,
+.page-canvas > *,
+.page-video > *,
+.page-customize > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ===== Gradient Chat Bubbles ===== */
 /* Uses --user-bubble-gradient and --ai-bubble-gradient set by applyTheme().
    When the value is "none", the fallback solid colour is used instead. */
