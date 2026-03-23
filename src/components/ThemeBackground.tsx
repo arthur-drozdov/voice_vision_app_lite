@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { getSelectedWallpaper, getPresetById } from "@/lib/wallpaperPresets";
 import { getSelectedMidnightWallpaper, getMidnightPresetById } from "@/lib/midnightWallpaperPresets";
 import { getSelectedSunsetWallpaper, getSunsetPresetById } from "@/lib/sunsetWallpaperPresets";
+import { getSelectedSunsetV2Wallpaper, getSunsetV2PresetById } from "@/lib/sunsetV2WallpaperPresets";
 import MidnightThreeCanvas from "@/components/MidnightThreeCanvas";
 import SunsetCanvas from "@/components/SunsetCanvas";
 
@@ -461,6 +462,85 @@ const SunsetBg = () => {
   );
 };
 
+// ─── Sunset V2 (Gallery): image-based art wallpapers ──────────────────────────
+
+const SunsetV2Bg = () => {
+  const [presetId, setPresetId] = useState(getSelectedSunsetV2Wallpaper);
+
+  useEffect(() => {
+    const handler = () => setPresetId(getSelectedSunsetV2Wallpaper());
+    window.addEventListener("wallpaperchange", handler);
+    return () => window.removeEventListener("wallpaperchange", handler);
+  }, []);
+
+  const preset = useMemo(() => getSunsetV2PresetById(presetId), [presetId]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const currentTheme = root.dataset.theme;
+    if (currentTheme !== "sunset-v2") return;
+    if (!preset) return;
+
+    if (preset.glassColor) {
+      root.style.setProperty("--surface-glass", preset.glassColor);
+      root.style.setProperty("--popover", preset.glassColor);
+      root.style.setProperty("--card", preset.glassColor);
+    }
+    if (preset.accentColor) {
+      root.style.setProperty("--secondary", preset.accentColor.secondary);
+      root.style.setProperty("--input", preset.accentColor.input);
+      root.style.setProperty("--border", preset.accentColor.border);
+      if (preset.accentColor.primary) {
+        root.style.setProperty("--primary", preset.accentColor.primary);
+        root.style.setProperty("--ring", preset.accentColor.primary);
+        root.style.setProperty("--glow-primary", preset.accentColor.primary);
+      }
+    }
+    if (preset.greetingGradient) {
+      root.style.setProperty("--greeting-start", preset.greetingGradient.start);
+      root.style.setProperty("--greeting-mid", preset.greetingGradient.mid);
+      root.style.setProperty("--greeting-end", preset.greetingGradient.end);
+    }
+    if (preset.bubbleColors) {
+      root.style.setProperty("--bubble-ai-start", preset.bubbleColors.aiStart);
+      root.style.setProperty("--bubble-ai-end", preset.bubbleColors.aiEnd);
+      root.style.setProperty("--bubble-user-start", preset.bubbleColors.userStart);
+      root.style.setProperty("--bubble-user-end", preset.bubbleColors.userEnd);
+    }
+  }, [preset]);
+
+  if (!preset) {
+    return (
+      <div className="absolute inset-0" style={{
+        background: "linear-gradient(180deg, hsl(18,28%,12%) 0%, hsl(18,25%,17%) 50%, hsl(18,28%,12%) 100%)",
+      }} />
+    );
+  }
+
+  return (
+    <>
+      {/* Base gradient fallback */}
+      <div className="absolute inset-0" style={{ background: preset.base }} />
+      {/* Art wallpaper image */}
+      {preset.backgroundImage && (
+        <img
+          src={preset.backgroundImage}
+          alt=""
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </>
+  );
+};
+
 // ─── Ocean: Larimar ────────────────────────────────────────────────────────────
 // Deep Caribbean teal with luminous cyan iridescence.
 const OceanBg = () => (
@@ -643,7 +723,8 @@ const ThemeBackground = () => {
       {themeId === "default"  && <DefaultBg />}
       {themeId === "midnight" && <MidnightBg />}
       {themeId === "forest"   && <ForestBg />}
-      {themeId === "sunset"   && <SunsetBg />}
+      {themeId === "sunset"    && <SunsetBg />}
+      {themeId === "sunset-v2" && <SunsetV2Bg />}
       {themeId === "ocean"    && <OceanBg />}
       {themeId === "focus"    && <FocusBg />}
       {/* Custom image/GIF — layers on top of theme bg when set, hidden during focus */}

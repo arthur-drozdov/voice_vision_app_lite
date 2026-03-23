@@ -48,6 +48,7 @@ import { isFocusActive, toggleFocus } from "@/lib/FocusController";
 import { wallpaperPresets, getSelectedWallpaper, setSelectedWallpaper } from "@/lib/wallpaperPresets";
 import { midnightWallpaperPresets, getSelectedMidnightWallpaper, setSelectedMidnightWallpaper } from "@/lib/midnightWallpaperPresets";
 import { sunsetWallpaperPresets, getSelectedSunsetWallpaper, setSelectedSunsetWallpaper } from "@/lib/sunsetWallpaperPresets";
+import { sunsetV2WallpaperPresets, getSelectedSunsetV2Wallpaper, setSelectedSunsetV2Wallpaper } from "@/lib/sunsetV2WallpaperPresets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -448,8 +449,8 @@ const Customize = () => {
                   ? "Accent colour — tap to change button & UI colours"
                   : "Background preset — tap to preview"}
               </p>
-              <div className={`grid gap-2 ${settings.background === "midnight" ? "grid-cols-4" : settings.background === "sunset" ? "grid-cols-6" : "grid-cols-5"}`}>
-                {(settings.background === "midnight" ? midnightWallpaperPresets : settings.background === "sunset" ? sunsetWallpaperPresets : wallpaperPresets).map((wp) => (
+              <div className={`grid gap-2 ${settings.background === "midnight" ? "grid-cols-4" : settings.background === "sunset" ? "grid-cols-6" : settings.background === "sunset-v2" ? "grid-cols-5" : "grid-cols-5"}`}>
+                {(settings.background === "midnight" ? midnightWallpaperPresets : settings.background === "sunset" ? sunsetWallpaperPresets : settings.background === "sunset-v2" ? sunsetV2WallpaperPresets : wallpaperPresets).map((wp) => (
                   <button
                     key={wp.id}
                     onClick={() => {
@@ -458,6 +459,8 @@ const Customize = () => {
                         setSelectedMidnightWallpaper(wp.id);
                       } else if (settings.background === "sunset") {
                         setSelectedSunsetWallpaper(wp.id);
+                      } else if (settings.background === "sunset-v2") {
+                        setSelectedSunsetV2Wallpaper(wp.id);
                       } else {
                         setSelectedWallpaper(wp.id);
                       }
