@@ -529,9 +529,9 @@ const SunsetV2Bg = () => {
           aria-hidden
           style={{
             position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
+            inset: "-5%",
+            width: "110%",
+            height: "110%",
             objectFit: "cover",
             pointerEvents: "none",
           }}
