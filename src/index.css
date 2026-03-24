@@ -5,6 +5,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Glass utility — makes Card elements match GlassContainer appearance */
+.glass {
+  background: hsl(var(--surface-glass) / 0.45) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-color: hsl(var(--border) / 0.15) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+
 /* Hide default scrollbar, show subtle thin indicator */
 * {
   scrollbar-width: thin;
