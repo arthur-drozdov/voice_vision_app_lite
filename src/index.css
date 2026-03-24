@@ -598,7 +598,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* Orbit wrapper — positioned relative so the arm can spin */
 [data-theme="midnight"] .orbit-wrap,
-[data-theme="sunset"] .orbit-wrap {
+[data-theme="sunset"] .orbit-wrap,
+[data-theme="sunset-v2"] .orbit-wrap {
   position: relative;
   z-index: 1;
   overflow: visible;
@@ -607,7 +608,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* Dashed orbit track rail */
 [data-theme="midnight"] .orbit-wrap::after,
-[data-theme="sunset"] .orbit-wrap::after {
+[data-theme="sunset"] .orbit-wrap::after,
+[data-theme="sunset-v2"] .orbit-wrap::after {
   content: "";
   position: absolute;
   inset: -10px;
@@ -620,10 +622,12 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 /* Orbit guide colour — per-theme */
 [data-theme="midnight"] { --orbit-guide-color: hsla(262,85%,70%,0.18); }
 [data-theme="sunset"]   { --orbit-guide-color: hsla(28,80%,60%,0.35); }
+[data-theme="sunset-v2"]{ --orbit-guide-color: hsla(28,80%,60%,0.35); }
 
 /* Spinning arm — fills the orbit-wrap, rotates around its center */
 [data-theme="midnight"] .planet-arm,
-[data-theme="sunset"] .planet-arm {
+[data-theme="sunset"] .planet-arm,
+[data-theme="sunset-v2"] .planet-arm {
   position: absolute;
   inset: -10px;
   border-radius: 22px;
@@ -634,7 +638,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* Planet sits at top center of the arm */
 [data-theme="midnight"] .planet,
-[data-theme="sunset"] .planet {
+[data-theme="sunset"] .planet,
+[data-theme="sunset-v2"] .planet {
   position: absolute;
   top: -7px;
   left: 50%;
@@ -646,15 +651,20 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Per-planet orbit speeds ── */
 [data-theme="midnight"] .planet-arm-earth,
-[data-theme="sunset"] .planet-arm-earth     { animation: orbitCW  12s linear infinite; }
+[data-theme="sunset"] .planet-arm-earth,
+[data-theme="sunset-v2"] .planet-arm-earth     { animation: orbitCW  12s linear infinite; }
 [data-theme="midnight"] .planet-arm-saturn,
-[data-theme="sunset"] .planet-arm-saturn    { animation: orbitCW  18s linear infinite; }
+[data-theme="sunset"] .planet-arm-saturn,
+[data-theme="sunset-v2"] .planet-arm-saturn    { animation: orbitCW  18s linear infinite; }
 [data-theme="midnight"] .planet-arm-venus,
-[data-theme="sunset"] .planet-arm-venus     { animation: orbitCCW 10s linear infinite; }
+[data-theme="sunset"] .planet-arm-venus,
+[data-theme="sunset-v2"] .planet-arm-venus     { animation: orbitCCW 10s linear infinite; }
 [data-theme="midnight"] .planet-arm-jupiter,
-[data-theme="sunset"] .planet-arm-jupiter   { animation: orbitCW   8s linear infinite; }
+[data-theme="sunset"] .planet-arm-jupiter,
+[data-theme="sunset-v2"] .planet-arm-jupiter   { animation: orbitCW   8s linear infinite; }
 [data-theme="midnight"] .planet-arm-neptune,
-[data-theme="sunset"] .planet-arm-neptune   { animation: orbitCW  25s linear infinite; }
+[data-theme="sunset"] .planet-arm-neptune,
+[data-theme="sunset-v2"] .planet-arm-neptune   { animation: orbitCW  25s linear infinite; }
 
 /* Planet base — shared border-radius */
 .planet {
@@ -664,7 +674,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Earth (14px) — Home page ── */
 [data-theme="midnight"] .planet-earth,
-[data-theme="sunset"] .planet-earth {
+[data-theme="sunset"] .planet-earth,
+[data-theme="sunset-v2"] .planet-earth {
   width: 14px;
   height: 14px;
   background:
@@ -677,7 +688,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Saturn (14px incl ring) — Chat page ── */
 [data-theme="midnight"] .planet-saturn,
-[data-theme="sunset"] .planet-saturn {
+[data-theme="sunset"] .planet-saturn,
+[data-theme="sunset-v2"] .planet-saturn {
   width: 16px;
   height: 16px;
   position: relative;
@@ -692,7 +704,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 }
 /* Saturn ring — CSS ellipse border */
 [data-theme="midnight"] .planet-saturn::before,
-[data-theme="sunset"] .planet-saturn::before {
+[data-theme="sunset"] .planet-saturn::before,
+[data-theme="sunset-v2"] .planet-saturn::before {
   content: "";
   position: absolute;
   top: 3px;
@@ -710,7 +723,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Venus (12px) — Canvas page ── */
 [data-theme="midnight"] .planet-venus,
-[data-theme="sunset"] .planet-venus {
+[data-theme="sunset"] .planet-venus,
+[data-theme="sunset-v2"] .planet-venus {
   width: 12px;
   height: 12px;
   background:
@@ -721,7 +735,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Jupiter (15px) — Video page ── */
 [data-theme="midnight"] .planet-jupiter,
-[data-theme="sunset"] .planet-jupiter {
+[data-theme="sunset"] .planet-jupiter,
+[data-theme="sunset-v2"] .planet-jupiter {
   width: 15px;
   height: 15px;
   background:
@@ -738,7 +753,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ── Neptune (11px) — Customise page ── */
 [data-theme="midnight"] .planet-neptune,
-[data-theme="sunset"] .planet-neptune {
+[data-theme="sunset"] .planet-neptune,
+[data-theme="sunset-v2"] .planet-neptune {
   width: 11px;
   height: 11px;
   background:
@@ -749,8 +765,8 @@ input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* Non-orbit themes: hide orbit elements */
-:not([data-theme="midnight"]):not([data-theme="sunset"]) .orbit-wrap::after,
-:not([data-theme="midnight"]):not([data-theme="sunset"]) .planet-arm {
+:not([data-theme="midnight"]):not([data-theme="sunset"]):not([data-theme="sunset-v2"]) .orbit-wrap::after,
+:not([data-theme="midnight"]):not([data-theme="sunset"]):not([data-theme="sunset-v2"]) .planet-arm {
   display: none;
 }
 
