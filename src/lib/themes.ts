@@ -71,6 +71,7 @@ export const themes: Theme[] = [
       "--surface-glass": "255 45% 22%",
     },
   },
+  /* ── Forest (disabled) ──────────────────────────────────────────────────────
   {
     id: "forest",
     label: "Forest",
@@ -102,6 +103,8 @@ export const themes: Theme[] = [
       "--surface-glass": "150 40% 18%",
     },
   },
+  ── end Forest ──────────────────────────────────────────────────────────── */
+  /* ── Sunset original (disabled) ─────────────────────────────────────────────
   {
     id: "sunset",
     label: "Sunset",
@@ -133,9 +136,10 @@ export const themes: Theme[] = [
       "--surface-glass": "20 40% 20%",
     },
   },
+  ── end Sunset original ───────────────────────────────────────────────── */
   {
     id: "sunset-v2",
-    label: "Sunset Gallery",
+    label: "Sunset",
     swatch: "hsl(18, 30%, 14%)",
     swatchGradient: "linear-gradient(135deg, hsl(28,80%,45%), hsl(330,50%,42%), hsl(42,70%,40%))",
     userBubble: "linear-gradient(135deg, hsl(28,85%,48%), hsl(350,70%,45%))",
@@ -164,6 +168,7 @@ export const themes: Theme[] = [
       "--surface-glass": "20 35% 18%",
     },
   },
+  /* ── Ocean (disabled) ───────────────────────────────────────────────────────
   {
     id: "ocean",
     label: "Ocean",
@@ -195,6 +200,7 @@ export const themes: Theme[] = [
       "--surface-glass": "200 45% 20%",
     },
   },
+  ── end Ocean ─────────────────────────────────────────────────────────── */
   {
     id: "focus",
     label: "Focus",
