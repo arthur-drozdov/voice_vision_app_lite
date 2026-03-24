@@ -931,7 +931,7 @@ const Customize = () => {
       </div>
 
       {/* Bottom action buttons — kept for reference, removed from view
-      <div className="sticky bottom-16 px-5 pb-4 pt-2 border-t border-border/50" style={{ background: "hsl(var(--background) / 0.95)" }}>
+      <div className="sticky bottom-16 px-5 pb-4 pt-2 border-t border-border/50" style={{ background: "hsl(var(--surface-glass) / 0.95)" }}>
         <div className="flex gap-2 max-w-lg mx-auto">
           <Button
             onClick={handleReset}

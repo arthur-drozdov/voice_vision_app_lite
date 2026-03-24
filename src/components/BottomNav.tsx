@@ -18,7 +18,7 @@ const BottomNav = () => {
     <nav
       className="absolute bottom-0 left-0 right-0 z-50 border-t border-white/10"
       style={{
-        background: "hsla(var(--background), 0.55)",
+        background: "hsla(var(--surface-glass), 0.55)",
         backdropFilter: "blur(24px) saturate(1.4)",
         WebkitBackdropFilter: "blur(24px) saturate(1.4)",
       }}
