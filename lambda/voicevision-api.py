@@ -21,11 +21,11 @@ GATEWAY_PORT = 18789
 GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_WS_TOKEN",
     "***REDACTED-GATEWAY-TOKEN***")
 
-AGENTS = {"eden": "default", "noe": "default", "flo": "default", 
-          "spark": "default", "luna": "default"}
+AGENTS = {"eden": "eden", "noe": "noe", "flo": "flo", 
+          "spark": "spark", "luna": "luna"}
 
 # Max time to spend streaming before API Gateway kills us (29s timeout, 25s safe)
-STREAM_TIMEOUT_S = 25
+STREAM_TIMEOUT_S = 28
 
 _tailscale_ready = False
 
