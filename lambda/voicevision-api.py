@@ -32,7 +32,17 @@ _tailscale_ready = False
 def ensure_tailscale():
     global _tailscale_ready
     if _tailscale_ready:
-        return
+        # Quick liveness check — proxy may have died in warm container
+        try:
+            r = subprocess.run(["/var/task/tailscale", f"--socket={TS_SOCKET}", "status", "--json"],
+                capture_output=True, text=True, timeout=3)
+            if r.returncode == 0 and "Tailscale is stopped" not in r.stdout:
+                return  # Actually alive
+        except:
+            pass
+        # Proxy is dead — force re-init
+        print("Tailscale proxy stale, re-initializing")
+        _tailscale_ready = False
     
     # Kill any existing tailscaled and clean up stale socket
     try:
@@ -95,6 +105,7 @@ def send_ws(domain, stage, conn_id, data):
 
 
 def lambda_handler(event, context):
+    global _tailscale_ready
     route = event.get('requestContext', {}).get('routeKey', '$default')
     conn_id = event['requestContext']['connectionId']
     domain = event['requestContext']['domainName']
@@ -109,7 +120,8 @@ def lambda_handler(event, context):
         return {'statusCode': 200}
     
     # All other routes need Tailscale
-    ensure_tailscale()
+    if not _tailscale_ready:
+        ensure_tailscale()
     
     body = json.loads(event.get('body', '{}'))
     msg_type = body.get('type', 'chat')
@@ -146,73 +158,94 @@ def lambda_handler(event, context):
         
         start_time = time.time()
         
-        try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            
-            url = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/v1/chat/completions"
-            req = urllib.request.Request(url,
-                data=json.dumps(req_body).encode(),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {GATEWAY_TOKEN}",
-                },
-                method="POST")
-            
-            resp = urllib.request.urlopen(req, context=ctx, timeout=30)
-            
-            if resp.status != 200:
-                err_body = resp.read().decode()[:500]
-                print(f"Gateway error {resp.status}: {err_body}")
-                send_ws(domain, stage, conn_id, {"type": "error", "error": f"Gateway error {resp.status}"})
-                return {'statusCode': 200}
-            
-            # Read SSE stream — use byte buffer to avoid splitting multi-byte UTF-8
-            buf = b""
-            chunk_count = 0
-            while True:
-                elapsed = time.time() - start_time
-                if elapsed > STREAM_TIMEOUT_S:
-                    print(f"Timeout after {chunk_count} chunks, {elapsed:.1f}s")
-                    send_ws(domain, stage, conn_id, {"type": "done"})
-                    break
+        # Try up to 2 times (retry once if proxy is stale from warm start)
+        for attempt in range(2):
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
                 
-                raw = resp.read(4096)
-                if not raw:
-                    break
-                buf += raw
+                url = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/v1/chat/completions"
+                req = urllib.request.Request(url,
+                    data=json.dumps(req_body).encode(),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {GATEWAY_TOKEN}",
+                    },
+                    method="POST")
                 
-                # Process complete lines (split on \n byte)
-                while b'\n' in buf:
-                    line_bytes, buf = buf.split(b'\n', 1)
-                    line = line_bytes.decode('utf-8', errors='replace').strip()
-                    
-                    if not line or not line.startswith('data: '):
-                        continue
-                    
-                    data = line[6:]
-                    if data == '[DONE]':
+                resp = urllib.request.urlopen(req, context=ctx, timeout=30)
+            
+                if resp.status != 200:
+                    err_body = resp.read().decode()[:500]
+                    print(f"Gateway error {resp.status}: {err_body}")
+                    send_ws(domain, stage, conn_id, {"type": "error", "error": f"Gateway error {resp.status}"})
+                    return {'statusCode': 200}
+                
+                # Read SSE stream — use byte buffer to avoid splitting multi-byte UTF-8
+                buf = b""
+                chunk_count = 0
+                while True:
+                    elapsed = time.time() - start_time
+                    if elapsed > STREAM_TIMEOUT_S:
+                        print(f"Timeout after {chunk_count} chunks, {elapsed:.1f}s")
                         send_ws(domain, stage, conn_id, {"type": "done"})
-                        print(f"Stream complete: {chunk_count} chunks, {time.time()-start_time:.1f}s")
-                        return {'statusCode': 200}
+                        break
                     
+                    raw = resp.read(4096)
+                    if not raw:
+                        break
+                    buf += raw
+                    
+                    # Process complete lines (split on \n byte)
+                    while b'\n' in buf:
+                        line_bytes, buf = buf.split(b'\n', 1)
+                        line = line_bytes.decode('utf-8', errors='replace').strip()
+                        
+                        if not line or not line.startswith('data: '):
+                            continue
+                        
+                        data = line[6:]
+                        if data == '[DONE]':
+                            send_ws(domain, stage, conn_id, {"type": "done"})
+                            print(f"Stream complete: {chunk_count} chunks, {time.time()-start_time:.1f}s")
+                            return {'statusCode': 200}
+                        
+                        try:
+                            event = json.loads(data)
+                            delta = event.get('choices', [{}])[0].get('delta', {})
+                            content = delta.get('content', '')
+                            if content:
+                                send_ws(domain, stage, conn_id, {"type": "chunk", "text": content})
+                                chunk_count += 1
+                        except json.JSONDecodeError:
+                            pass
+                
+                # Stream ended without [DONE]
+                send_ws(domain, stage, conn_id, {"type": "done"})
+                return {'statusCode': 200}
+                
+            except Exception as e:
+                err_str = str(e)
+                # If proxy is dead (warm container stale connection), re-init and retry once
+                if attempt == 0 and ("502" in err_str or "Busy" in err_str or "Connection refused" in err_str):
+                    print(f"Proxy error on attempt 1: {e}, re-initializing Tailscale")
+                    _tailscale_ready = False
                     try:
-                        event = json.loads(data)
-                        delta = event.get('choices', [{}])[0].get('delta', {})
-                        content = delta.get('content', '')
-                        if content:
-                            send_ws(domain, stage, conn_id, {"type": "chunk", "text": content})
-                            chunk_count += 1
-                    except json.JSONDecodeError:
+                        subprocess.run(["pkill", "-9", "tailscaled"], timeout=2,
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        time.sleep(0.5)
+                    except:
                         pass
-            
-            # Stream ended without [DONE]
-            send_ws(domain, stage, conn_id, {"type": "done"})
-            
-        except Exception as e:
-            print(f"Stream error: {e}")
-            send_ws(domain, stage, conn_id, {"type": "error", "error": str(e)[:200]})
+                    ensure_tailscale()
+                    continue
+                
+                print(f"Stream error: {e}")
+                send_ws(domain, stage, conn_id, {"type": "error", "error": err_str[:200]})
+                return {'statusCode': 200}
+        
+        # Should not reach here, but just in case
+        send_ws(domain, stage, conn_id, {"type": "error", "error": "Max retries exceeded"})
         
         return {'statusCode': 200}
     
