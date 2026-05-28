@@ -168,8 +168,8 @@ def lambda_handler(event, context):
                 send_ws(domain, stage, conn_id, {"type": "error", "error": f"Gateway error {resp.status}"})
                 return {'statusCode': 200}
             
-            # Read SSE stream synchronously
-            buffer = ""
+            # Read SSE stream — use byte buffer to avoid splitting multi-byte UTF-8
+            buf = b""
             chunk_count = 0
             while True:
                 elapsed = time.time() - start_time
@@ -178,16 +178,16 @@ def lambda_handler(event, context):
                     send_ws(domain, stage, conn_id, {"type": "done"})
                     break
                 
-                chunk = resp.read(1)
-                if not chunk:
+                raw = resp.read(4096)
+                if not raw:
                     break
+                buf += raw
                 
-                chunk_str = chunk.decode('utf-8', errors='replace')
-                buffer += chunk_str
-                
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
-                    line = line.strip()
+                # Process complete lines (split on \n byte)
+                while b'\n' in buf:
+                    line_bytes, buf = buf.split(b'\n', 1)
+                    line = line_bytes.decode('utf-8', errors='replace').strip()
+                    
                     if not line or not line.startswith('data: '):
                         continue
                     
