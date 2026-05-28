@@ -605,12 +605,7 @@ const ChatAgent = () => {
 
     bridgeRef.current = bridge;
 
-    if (!isProduction) {
-      bridge.connect();
-    } else {
-      // In production, connect to API Gateway WebSocket
-      bridge.connect();
-    }
+    bridge.connect();
 
     return () => {
       bridge.disconnect();
