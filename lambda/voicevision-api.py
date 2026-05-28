@@ -1,61 +1,100 @@
 """
-VoiceVision API Lambda v5
+VoiceVision API Lambda v7 — Synchronous SSE Streaming
 
-Simple, reliable approach:
-1. POST to gateway webhook/email (known working) 
-2. Returns runId to browser
-3. Response arrives via session system
+Architecture:
+  Browser → API Gateway WebSocket → Lambda → Tailscale → Gateway /v1/chat/completions (SSE)
 
-Architecture: Browser → API GW WS → Lambda → Tailscale → Gateway webhook → Agent
+The Lambda handler processes the chat request synchronously — it makes a
+streaming HTTP request to the gateway, parses SSE tokens, and forwards each
+to the browser via post_to_connection. The handler returns when streaming
+completes or the API Gateway timeout approaches (25s safety margin for 29s max).
 """
 
-import json, os, boto3, subprocess, time, ssl, urllib.request, urllib.error
+import json, os, boto3, subprocess, time, ssl, http.client, urllib.request, urllib.error
 from datetime import datetime
 
 TS_SOCKET = "/tmp/tailscale/tailscaled.sock"
 TS_DIR = "/tmp/tailscale"
 
+GATEWAY_HOST = "gateway.example.com"
+GATEWAY_PORT = 18789
+GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_WS_TOKEN",
+    "***REDACTED-GATEWAY-TOKEN***")
+
+AGENTS = {"eden": "default", "noe": "default", "flo": "default", 
+          "spark": "default", "luna": "default"}
+
+# Max time to spend streaming before API Gateway kills us (29s timeout, 25s safe)
+STREAM_TIMEOUT_S = 25
+
+_tailscale_ready = False
+
 def ensure_tailscale():
-    if os.path.exists(TS_SOCKET):
-        os.environ["HTTP_PROXY"] = "http://localhost:1056"
-        os.environ["HTTPS_PROXY"] = "http://localhost:1056"
+    global _tailscale_ready
+    if _tailscale_ready:
         return
+    
+    # Kill any existing tailscaled and clean up stale socket
+    try:
+        subprocess.run(["pkill", "-9", "tailscaled"], timeout=2,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(0.3)
+    except:
+        pass
+    for path in [TS_SOCKET, f"{TS_SOCKET}.lock"]:
+        try:
+            os.unlink(path)
+        except:
+            pass
+    
     os.makedirs(TS_DIR, exist_ok=True)
     auth_key = os.environ.get("TAILSCALE_AUTHKEY", "")
     hostname = f"vv-{os.getpid()}"
+    
+    print(f"Starting tailscaled...")
     subprocess.Popen(
         ["/var/task/tailscaled", "--tun=userspace-networking",
          "--socks5-server=localhost:1055", "--outbound-http-proxy-listen=localhost:1056",
          f"--statedir={TS_DIR}", f"--socket={TS_SOCKET}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
+    
+    # Wait for socket to appear
+    for _ in range(30):
+        if os.path.exists(TS_SOCKET):
+            break
+        time.sleep(0.2)
+    time.sleep(0.5)
+    
+    print(f"Running tailscale up...")
     r = subprocess.run(["/var/task/tailscale", f"--socket={TS_SOCKET}", "up",
          f"--auth-key={auth_key}", f"--hostname={hostname}",
          "--force-reauth", "--reset", "--timeout=30s"],
         capture_output=True, text=True, timeout=35)
-    if r.returncode == 0:
-        os.environ["HTTP_PROXY"] = "http://localhost:1056"
-        os.environ["HTTPS_PROXY"] = "http://localhost:1056"
-        print("Tailscale connected")
-    else:
+    print(f"tailscale up: rc={r.returncode} stdout={r.stdout[:100]}")
+    
+    if r.returncode != 0:
         raise RuntimeError(f"tailscale up failed: {r.stderr[:300]}")
+    
+    # Give the HTTP proxy a moment to start accepting connections
+    time.sleep(1)
+    
+    _tailscale_ready = True
+    os.environ["HTTP_PROXY"] = "http://localhost:1056"
+    os.environ["HTTPS_PROXY"] = "http://localhost:1056"
+    print(f"Tailscale ready as {hostname}")
 
-def send_to_client(domain, stage, conn_id, data):
+
+def send_ws(domain, stage, conn_id, data):
     try:
         client = boto3.client('apigatewaymanagementapi',
             endpoint_url=f"https://{domain}/{stage}")
         client.post_to_connection(ConnectionId=conn_id,
             Data=json.dumps(data).encode())
     except Exception as e:
-        print(f"post error: {e}")
+        print(f"ws send error: {e}")
 
-GATEWAY_URL = "http://gateway.example.com:18789/webhook/email"
-WEBHOOK_TOKEN = os.environ.get('OPENCLAW_AUTH_BEARER',
-    'a8c4fdc1295985ade47d10be3a5e68aca4222393bdf846eb72c18dc12920ca24')
-AGENTS = {"eden":"eden","noe":"noe","flo":"flo","spark":"spark","luna":"luna"}
 
 def lambda_handler(event, context):
-    ensure_tailscale()
     route = event.get('requestContext', {}).get('routeKey', '$default')
     conn_id = event['requestContext']['connectionId']
     domain = event['requestContext']['domainName']
@@ -64,77 +103,116 @@ def lambda_handler(event, context):
     if route == '$connect':
         print(f"Connected: {conn_id}")
         return {'statusCode': 200}
+    
     if route == '$disconnect':
         print(f"Disconnected: {conn_id}")
         return {'statusCode': 200}
     
+    # All other routes need Tailscale
+    ensure_tailscale()
+    
     body = json.loads(event.get('body', '{}'))
     msg_type = body.get('type', 'chat')
     
+    if msg_type == 'hello':
+        send_ws(domain, stage, conn_id, {
+            "type": "hello", "version": "2.0.0",
+            "agents": list(AGENTS.keys()), "status": "connected"
+        })
+        return {'statusCode': 200}
+    
     if msg_type == 'chat':
-        text = body.get('text', '')
         character = body.get('character', 'eden')
-        sys_prompt = body.get('systemPrompt', '')
-        agent_id = AGENTS.get(character, 'default')
-        session_key = f"vv:{conn_id}"
+        text = body.get('text', '')
+        system_prompt = body.get('systemPrompt', '')
+        messages = body.get('messages', [])
         
-        # Send to gateway webhook
-        payload = json.dumps({
-            "path": "email",
-            "event": "chat.message",
-            "data": {
-                "message": text,
-                "agentId": agent_id,
-                "sessionKey": session_key,
-                "systemPrompt": sys_prompt,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        }).encode()
+        agent_id = AGENTS.get(character, 'default')
+        model = f"openclaw/{agent_id}"
+        
+        if not messages and text:
+            messages = [{"role": "user", "text": text}]
+        
+        send_ws(domain, stage, conn_id, {"type": "status", "status": "processing"})
+        
+        # Build OpenAI-compatible body
+        req_body = {"model": model, "messages": [], "stream": True, "max_tokens": 2048}
+        if system_prompt:
+            req_body["messages"].append({"role": "system", "content": system_prompt})
+        for msg in messages:
+            role = "user" if msg.get("role") == "user" else "assistant"
+            req_body["messages"].append({"role": role, "content": msg.get("text", "")})
+        
+        start_time = time.time()
         
         try:
-            req = urllib.request.Request(GATEWAY_URL, data=payload,
-                headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {WEBHOOK_TOKEN}'},
-                method='POST')
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             
-            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-                result = json.loads(resp.read().decode())
-                run_id = result.get('runId', '')
-                print(f"Agent {agent_id} running: {run_id}")
+            url = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/v1/chat/completions"
+            req = urllib.request.Request(url,
+                data=json.dumps(req_body).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {GATEWAY_TOKEN}",
+                },
+                method="POST")
+            
+            resp = urllib.request.urlopen(req, context=ctx, timeout=30)
+            
+            if resp.status != 200:
+                err_body = resp.read().decode()[:500]
+                print(f"Gateway error {resp.status}: {err_body}")
+                send_ws(domain, stage, conn_id, {"type": "error", "error": f"Gateway error {resp.status}"})
+                return {'statusCode': 200}
+            
+            # Read SSE stream synchronously
+            buffer = ""
+            chunk_count = 0
+            while True:
+                elapsed = time.time() - start_time
+                if elapsed > STREAM_TIMEOUT_S:
+                    print(f"Timeout after {chunk_count} chunks, {elapsed:.1f}s")
+                    send_ws(domain, stage, conn_id, {"type": "done"})
+                    break
                 
-                send_to_client(domain, stage, conn_id, {
-                    "type": "status", "status": "processing",
-                    "runId": run_id, "sessionKey": session_key
-                })
+                chunk = resp.read(1)
+                if not chunk:
+                    break
                 
-                # Agent is thinking — response will follow via sessions
-                send_to_client(domain, stage, conn_id, {
-                    "type": "chunk",
-                    "text": f"[{character} is thinking...]"
-                })
-                send_to_client(domain, stage, conn_id, {"type": "done"})
+                chunk_str = chunk.decode('utf-8', errors='replace')
+                buffer += chunk_str
                 
-        except urllib.error.HTTPError as e:
-            body_err = e.read().decode()[:300] if e.fp else ''
-            print(f"Gateway error {e.code}: {body_err}")
-            send_to_client(domain, stage, conn_id, {
-                "type": "error", "error": f"Gateway error {e.code}"
-            })
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    line = line.strip()
+                    if not line or not line.startswith('data: '):
+                        continue
+                    
+                    data = line[6:]
+                    if data == '[DONE]':
+                        send_ws(domain, stage, conn_id, {"type": "done"})
+                        print(f"Stream complete: {chunk_count} chunks, {time.time()-start_time:.1f}s")
+                        return {'statusCode': 200}
+                    
+                    try:
+                        event = json.loads(data)
+                        delta = event.get('choices', [{}])[0].get('delta', {})
+                        content = delta.get('content', '')
+                        if content:
+                            send_ws(domain, stage, conn_id, {"type": "chunk", "text": content})
+                            chunk_count += 1
+                    except json.JSONDecodeError:
+                        pass
+            
+            # Stream ended without [DONE]
+            send_ws(domain, stage, conn_id, {"type": "done"})
+            
         except Exception as e:
-            print(f"Error: {e}")
-            send_to_client(domain, stage, conn_id, {
-                "type": "error", "error": str(e)[:200]
-            })
+            print(f"Stream error: {e}")
+            send_ws(domain, stage, conn_id, {"type": "error", "error": str(e)[:200]})
         
-        return {'statusCode': 200, 'body': 'ok'}
+        return {'statusCode': 200}
     
-    elif msg_type == 'hello':
-        send_to_client(domain, stage, conn_id, {
-            "type": "hello", "version": "1.0.0",
-            "agents": list(AGENTS.keys()), "status": "connected"
-        })
-        return {'statusCode': 200, 'body': 'ok'}
-    
-    return {'statusCode': 200, 'body': 'ok'}
+    return {'statusCode': 200}

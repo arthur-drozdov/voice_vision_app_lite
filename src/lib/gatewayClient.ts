@@ -39,7 +39,7 @@ export class GatewayClient {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private shouldReconnect = true;
-  private messageQueue: Array<{ text: string; character: string; systemPrompt?: string }> = [];
+  private messageQueue: Array<{ text: string; character: string; systemPrompt?: string; messages?: { role: string; text: string }[] }> = [];
 
   private readonly wsUrl: string;
   private readonly reconnectInterval: number;
@@ -143,7 +143,7 @@ export class GatewayClient {
     }, this.reconnectInterval * this.reconnectAttempts);
   }
 
-  private sendRaw(msg: { text: string; character: string; systemPrompt?: string }): void {
+  private sendRaw(msg: { text: string; character: string; systemPrompt?: string; messages?: { role: string; text: string }[] }): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.messageQueue.push(msg);
       return;
@@ -153,17 +153,18 @@ export class GatewayClient {
       text: msg.text,
       character: msg.character,
       systemPrompt: msg.systemPrompt,
+      messages: msg.messages || [],
     }));
   }
 
-  send(text: string, character: string, systemPrompt?: string): void {
+  send(text: string, character: string, systemPrompt?: string, messages?: { role: string; text: string }[]): void {
     if (this.status !== 'connected') {
       // Queue for when we connect
-      this.messageQueue.push({ text, character, systemPrompt });
+      this.messageQueue.push({ text, character, systemPrompt, messages });
       this.connect();
       return;
     }
-    this.sendRaw({ text, character, systemPrompt });
+    this.sendRaw({ text, character, systemPrompt, messages });
   }
 
   cancel(): void {

@@ -548,7 +548,7 @@ const ChatAgent = () => {
         .slice(-20)
         .map(({ role, text }) => ({ role, text }));
 
-      bridge.send(text, selectedChar, systemPrompt);
+      bridge.send(text, selectedChar, systemPrompt, historyForBackend);
     },
     [input, selectedChar, char]
   );
