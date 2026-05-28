@@ -607,6 +607,9 @@ const ChatAgent = () => {
 
     if (!isProduction) {
       bridge.connect();
+    } else {
+      // In production, connect to API Gateway WebSocket
+      bridge.connect();
     }
 
     return () => {

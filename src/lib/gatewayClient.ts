@@ -29,6 +29,9 @@ export interface GatewayOptions {
   maxReconnectAttempts?: number;
 }
 
+// Production WebSocket endpoint via API Gateway → Lambda → Tailscale → OpenClaw
+const PROD_WS_URL = 'wss://184z3y4uxi.execute-api.us-east-1.amazonaws.com/prod';
+
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private status: GatewayStatus = 'disconnected';
@@ -43,7 +46,13 @@ export class GatewayClient {
   private readonly maxReconnectAttempts: number;
 
   constructor(options: GatewayOptions = {}, callbacks: GatewayCallbacks = {}) {
-    this.wsUrl = options.wsUrl ?? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/chat`;
+    this.wsUrl = options.wsUrl ?? (
+      // In dev (localhost): use Vite proxy to the bridge
+      // In production: use API Gateway WebSocket → Lambda → Tailscale → OpenClaw
+      window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+        ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/chat`
+        : PROD_WS_URL
+    );
     this.reconnectInterval = options.reconnectInterval ?? 3000;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
     this.callbacks = callbacks;
