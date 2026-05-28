@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Square, Wifi, WifiOff, LogOut, ChevronLeft, Moon, Sun, Sparkles, Trash2, Copy, Check, Mic } from "lucide-react";
+import { Send, Square, Wifi, WifiOff, LogOut, ChevronLeft, Moon, Sun, Sparkles, Trash2, Copy, Check, Mic, Waves, Wave, Ear } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +17,7 @@ import { isFocusActive, toggleFocus } from "@/lib/FocusController";
 import { MoodType, detectContentMood, deriveChatMood, detectUserMood, buildMoodInstruction, type UserMood } from "@/lib/moodDetector";
 import SaveToCanvasPrompt from "@/components/SaveToCanvasPrompt";
 import VoiceDictationButton from "@/components/VoiceDictationButton";
+import { useClientSideVAD } from "@/hooks/useClientSideVAD";
 import FormatPickerModal from "@/components/FormatPickerModal";
 import MergePickerModal from "@/components/MergePickerModal";
 import UpgradePrompt from "@/components/UpgradePrompt";
@@ -150,6 +151,60 @@ const ChatAgent = () => {
   const [isSlowResponse, setIsSlowResponse] = useState(false);
   // Tool call indicator: true when a backend tool (e.g. Search) is executing
   const [isSearching, setIsSearching] = useState(false);
+
+  // VAD input mode toggle (persisted)
+  const [inputMode, setInputMode] = useState<"push-to-talk" | "vad">(
+    () => (localStorage.getItem("vad-input-mode") as "push-to-talk" | "vad") || "push-to-talk"
+  );
+
+  // Ref for Web Speech recognition driven by VAD mode
+  const vadRecognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // Client-side VAD hook (only active when mode is "vad")
+  const vad = useClientSideVAD({
+    autoStart: inputMode === "vad",
+    model: "v5",
+    onSpeechStart: () => {
+      console.log("[VAD] Speech started");
+      // Auto-start Web Speech API recording when VAD detects speech
+      const SpeechRecognitionAPI = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+      if (SpeechRecognitionAPI && !vadRecognitionRef.current) {
+        const rec = new SpeechRecognitionAPI();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+        rec.onresult = (event) => {
+          let interim = "";
+          for (let i = 0; i < event.results.length; i++) {
+            const text = event.results[i][0]?.transcript ?? "";
+            if (!event.results[i].isFinal) interim += text;
+          }
+          if (interim) setInput(interim);
+        };
+        rec.onerror = () => {};
+        rec.start();
+        vadRecognitionRef.current = rec;
+      }
+    },
+    onSpeechEnd: () => {
+      console.log("[VAD] Speech ended");
+      // Stop Web Speech API recording and auto-send
+      if (vadRecognitionRef.current) {
+        vadRecognitionRef.current.stop();
+        vadRecognitionRef.current = null;
+      }
+      // Auto-send accumulated input after a brief debounce
+      setTimeout(() => {
+        setInput((prev) => {
+          if (prev.trim()) {
+            setTimeout(() => sendMessage(prev.trim()), 50);
+            return "";
+          }
+          return prev;
+        });
+      }, 300);
+    },
+  });
   const [searchToolName, setSearchToolName] = useState("");
 
   // Canvas save state
@@ -909,6 +964,29 @@ const ChatAgent = () => {
           </GlassContainer>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* VAD mode toggle */}
+          <button
+            onClick={() => {
+              const next = inputMode === "push-to-talk" ? "vad" : "push-to-talk";
+              setInputMode(next);
+              localStorage.setItem("vad-input-mode", next);
+              if (next === "vad") {
+                vad.startVAD().catch(() => {});
+              } else {
+                vad.stopVAD().catch(() => {});
+              }
+            }}
+            className={`px-2 py-1.5 rounded-xl glass active:scale-95 transition-transform text-[10px] font-medium flex items-center gap-1 ${
+              inputMode === "vad" ? "text-emerald-400 border border-emerald-500/30" : "text-muted-foreground"
+            }`}
+            title={inputMode === "vad" ? "Switch to Push-to-Talk" : "Switch to Auto VAD"}
+          >
+            {inputMode === "vad" ? (
+              <><Ear size={14} className="text-emerald-400" /><span className="text-emerald-400">VAD</span></>
+            ) : (
+              <><Mic size={14} /><span>PTT</span></>
+            )}
+          </button>
           <FocusButton />
           <button
             onClick={() => {
@@ -1136,6 +1214,20 @@ const ChatAgent = () => {
           onInterim={(text) => setInput(text)}
           disabled={isGenerating}
           iconSize={18}
+          mode={inputMode}
+          vadProps={{
+            isSpeaking: vad.isSpeaking,
+            isListening: vad.isListening,
+            isInitialized: vad.isInitialized,
+            error: vad.error,
+            onToggle: () => {
+              if (vad.isListening) {
+                vad.stopVAD();
+              } else {
+                vad.startVAD();
+              }
+            },
+          }}
         />
         </div>
       </div>
