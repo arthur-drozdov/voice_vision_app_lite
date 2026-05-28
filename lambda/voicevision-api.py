@@ -130,18 +130,19 @@ def lambda_handler(event, context):
         agent_id = AGENTS.get(character, 'default')
         model = f"openclaw/{agent_id}"
         
-        if not messages and text:
-            messages = [{"role": "user", "text": text}]
-        
         send_ws(domain, stage, conn_id, {"type": "status", "status": "processing"})
         
         # Build OpenAI-compatible body
         req_body = {"model": model, "messages": [], "stream": True, "max_tokens": 2048}
         if system_prompt:
             req_body["messages"].append({"role": "system", "content": system_prompt})
-        for msg in messages:
+        # Add conversation history
+        for msg in (messages or []):
             role = "user" if msg.get("role") == "user" else "assistant"
             req_body["messages"].append({"role": role, "content": msg.get("text", "")})
+        # Always append the current message as the last user turn
+        if text:
+            req_body["messages"].append({"role": "user", "content": text})
         
         start_time = time.time()
         
