@@ -21,6 +21,7 @@ import {
 } from "@/lib/canvasStore";
 import { canCreateBoard, getBoardLimit } from "@/lib/subscriptionStore";
 import { isFocusActive, toggleFocus } from "@/lib/FocusController";
+import { TelnyxVoiceButtonCompact } from "@/components/TelnyxVoiceButton";
 
 const VideoAgent = () => {
   const navigate = useNavigate();
@@ -586,6 +587,11 @@ const VideoAgent = () => {
             <VideoOff size={20} className="text-muted-foreground" />
           )}
         </button>
+        {/* Voice call (STT→LLM→TTS) — always available */}
+        <TelnyxVoiceButtonCompact
+          assistantId="assistant-b216d822-f641-4e22-a678-4a8f56d1de33"
+          iconSize={18}
+        />
         {isActive && (
           <>
             <motion.button

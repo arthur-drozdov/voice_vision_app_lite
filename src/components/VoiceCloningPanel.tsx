@@ -40,6 +40,15 @@ interface VoiceCloningPanelProps {
   compact?: boolean;
 }
 
+/** Built-in Polly voices — always available, work with pipeline Lambda */
+const BUILT_IN_VOICES: VoiceClone[] = [
+  { voice_id: "Ruth", name: "Ruth (British, warm)", ref_text: "Polly generative voice — clear, natural British English", is_default: true, has_ref: true, is_conditioned: true },
+  { voice_id: "Amy", name: "Amy (British, bright)", ref_text: "Polly generative voice — bright and friendly British English", is_default: false, has_ref: true, is_conditioned: true },
+  { voice_id: "Brian", name: "Brian (British, male)", ref_text: "Polly generative voice — male British English", is_default: false, has_ref: true, is_conditioned: true },
+  { voice_id: "Emma", name: "Emma (British, soft)", ref_text: "Polly neural voice — soft and warm British English", is_default: false, has_ref: true, is_conditioned: true },
+  { voice_id: "Arthur", name: "Arthur (British, male)", ref_text: "Polly neural voice — deep male British English", is_default: false, has_ref: true, is_conditioned: true },
+];
+
 /**
  * Waveform visualization component
  */
@@ -558,18 +567,24 @@ export function VoiceCloningPanel({
     setIsLoading(true);
     try {
       const fetchedVoices = await voiceCloningApi.listVoices();
-      // Add created_at if not present
       const voicesWithDate = fetchedVoices.map(v => ({
         ...v,
         created_at: v.created_at || new Date().toISOString(),
       }));
-      setVoices(voicesWithDate);
+      // Merge with built-in voices (API voices take priority on duplicate IDs)
+      const apiIds = new Set(voicesWithDate.map((v: any) => v.voice_id));
+      const builtInWithoutDuplicates = BUILT_IN_VOICES.filter(v => !apiIds.has(v.voice_id));
+      setVoices([...voicesWithDate, ...builtInWithoutDuplicates]);
+      console.log(`Loaded ${voicesWithDate.length} API voices + ${builtInWithoutDuplicates.length} built-in voices`);
     } catch (err) {
       console.error("Failed to fetch voices:", err);
+      // Fall back to built-in Polly voices when backend is unreachable
+      setVoices([...BUILT_IN_VOICES]);
       toast({
-        title: "Error Loading Voices",
-        description: "Failed to load voice clones. The backend may not be running.",
-        variant: "destructive",
+        title: "Using Built-in Voices",
+        description: "Voice cloning server not available. Using Polly voices.",
+        variant: "default",
+        duration: 4000,
       });
     } finally {
       setIsLoading(false);
@@ -585,12 +600,23 @@ export function VoiceCloningPanel({
     setSelectedVoice(newSelection);
     onVoiceSelect?.(newSelection);
 
+    const voice = voices.find(v => v.voice_id === voiceId);
+    const isBuiltIn = voice?.is_conditioned && voice?.has_ref && BUILT_IN_VOICES.some(bv => bv.voice_id === voiceId);
+
+    // Built-in voices don't need backend API
+    if (isBuiltIn) {
+      if (newSelection) {
+        toast({
+          title: "Voice Selected",
+          description: `Using "${voice?.name || voiceId}" for voice calls (built-in).`,
+        });
+      }
+      return;
+    }
+
     try {
       if (newSelection) {
         await voiceCloningApi.selectVoice(newSelection);
-        const voice = voices.find(v => v.voice_id === voiceId);
-        const isConditioned = voice?.is_conditioned || false;
-        const isDefault = voice?.is_default || false;
 
         let description = `Using "${voice?.name || voiceId}" for audio playback`;
         if (!isConditioned && !isDefault) {
@@ -617,6 +643,16 @@ export function VoiceCloningPanel({
   };
 
   const handleDeleteVoice = async (voiceId: string) => {
+    // Don't allow deleting built-in Polly voices
+    if (BUILT_IN_VOICES.some(bv => bv.voice_id === voiceId)) {
+      toast({
+        title: "Cannot Delete",
+        description: "Built-in voices cannot be deleted.",
+        variant: "default",
+      });
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this voice clone? This action cannot be undone.")) {
       return;
     }

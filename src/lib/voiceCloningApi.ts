@@ -44,8 +44,8 @@ export interface TTSPreviewResponse {
 export class VoiceCloningApi {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://127.0.0.1:8080') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl || import.meta.env.VITE_VOICE_CLONING_URL || 'http://127.0.0.1:8080';
   }
 
   /**
