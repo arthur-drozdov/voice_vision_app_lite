@@ -36,3 +36,5 @@ __pycache__/
 data/voices/
 latest_frame.jpg
 *.wav
+lambda/tailscale*
+lambda/tailscaled*

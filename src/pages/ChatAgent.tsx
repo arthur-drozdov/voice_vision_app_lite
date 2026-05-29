@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import CharacterSelect, { characters } from "@/components/CharacterSelect";
-import { getBridge, PythonBridge, ConnectionStatus } from "@/lib/pythonBridge";
+import { getGatewayClient, GatewayClient } from "@/lib/gatewayClient";
+import type { GatewayStatus } from "@/lib/gatewayClient";
 import { buildSystemPrompt, getCharacterGreeting } from "@/lib/characterPrompts";
 import { getUserName } from "@/lib/userProfileStore";
 import MoodRing from "@/components/MoodRing";
@@ -138,7 +139,7 @@ const ChatAgent = () => {
   const [selectedChar, setSelectedChar] = useState("noe");
   const [showCharSelect, setShowCharSelect] = useState(true);
   const [quickInput, setQuickInput] = useState("");
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
+  const [connectionStatus, setConnectionStatus] = useState<GatewayStatus>("disconnected");
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasStartedStreaming, setHasStartedStreaming] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -218,7 +219,7 @@ const ChatAgent = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Refs
-  const bridgeRef = useRef<PythonBridge | null>(null);
+  const bridgeRef = useRef<GatewayClient | null>(null);
   const currentResponseRef = useRef<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const systemPromptSentRef = useRef<boolean>(false);
@@ -602,87 +603,67 @@ const ChatAgent = () => {
         .slice(-20)
         .map(({ role, text }) => ({ role, text }));
 
-      bridge.send(text, systemPrompt, sessionIdRef.current, selectedChar, undefined, historyForBackend);
+      bridge.send(text, selectedChar, systemPrompt, historyForBackend);
     },
     [input, selectedChar, char]
   );
 
-  // ── WebSocket setup ────────────────────────────────────────────────────────
+  // ── Gateway client setup ──────────────────────────────────────────────────
   useEffect(() => {
-    const bridge = getBridge();
-    bridgeRef.current = bridge;
-    let currentSource = "";
-
-    const clearSlowTimer = () => {
-      if (slowResponseTimerRef.current) {
-        clearTimeout(slowResponseTimerRef.current);
-        slowResponseTimerRef.current = null;
-      }
-    };
-
-    const unsubStatus = bridge.onStatusChange((s) => setConnectionStatus(s));
-    const unsubChunk = bridge.onChunk((chunk: any, source: any) => {
-      // First chunk arrived — cancel thinking/slow indicators
-      setIsThinking(false);
-      setIsSlowResponse(false);
-      clearSlowTimer();
-      currentResponseRef.current += chunk;
-      setHasStartedStreaming(true);
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        const srcChanged = source && source !== currentSource;
-        if (source) currentSource = source;
-        const display =
-          source && source.startsWith("tools:") && srcChanged
-            ? `\n\n--- [${source}] ---\n${chunk}`
-            : chunk;
-        if (last?.role === "agent") {
-          return [...prev.slice(0, -1), { ...last, text: last.text + display, isStreaming: false }];
+    const bridge = getGatewayClient({
+      onChunk: (chunk: string) => {
+        setIsThinking(false);
+        setIsSlowResponse(false);
+        if (slowResponseTimerRef.current) {
+          clearTimeout(slowResponseTimerRef.current);
+          slowResponseTimerRef.current = null;
         }
-        return [...prev, { role: "agent", text: display, isStreaming: false }];
-      });
-    });
-    const unsubThinking = bridge.onThinking(() => {
-      setIsThinking(true);
-    });
-    const unsubToolCall = bridge.onToolCall((toolName, status) => {
-      if (status === "running") {
-        setIsSearching(true);
-        setSearchToolName(toolName);
-      } else {
+        currentResponseRef.current += chunk;
+        setHasStartedStreaming(true);
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "agent") {
+            return [...prev.slice(0, -1), { ...last, text: last.text + chunk, isStreaming: false }];
+          }
+          return [...prev, { role: "agent", text: chunk, isStreaming: false }];
+        });
+      },
+      onDone: () => {
+        setIsGenerating(false);
+        setHasStartedStreaming(false);
+        setIsThinking(false);
+        setIsSlowResponse(false);
         setIsSearching(false);
-        setSearchToolName("");
-      }
+        if (slowResponseTimerRef.current) {
+          clearTimeout(slowResponseTimerRef.current);
+          slowResponseTimerRef.current = null;
+        }
+      },
+      onError: (error: string) => {
+        setIsGenerating(false);
+        setIsThinking(false);
+        setIsSlowResponse(false);
+        setIsSearching(false);
+        if (slowResponseTimerRef.current) {
+          clearTimeout(slowResponseTimerRef.current);
+          slowResponseTimerRef.current = null;
+        }
+        const c = characters.find((x) => x.id === selectedChar);
+        setMessages((prev) => [
+          ...prev,
+          { role: "agent", text: `${c?.emoji ?? "\u{1F916}"} Sorry, I'm having trouble connecting: ${error}` },
+        ]);
+      },
+      onStatusChange: (s) => setConnectionStatus(s),
+      onThinking: () => setIsThinking(true),
     });
-    const unsubDone = bridge.onDone(() => {
-      setIsGenerating(false);
-      setHasStartedStreaming(false);
-      setIsThinking(false);
-      setIsSlowResponse(false);
-      setIsSearching(false);
-      clearSlowTimer();
-    });
-    const unsubError = bridge.onError(() => {
-      setIsGenerating(false);
-      setIsThinking(false);
-      setIsSlowResponse(false);
-      setIsSearching(false);
-      clearSlowTimer();
-      const c = characters.find((x) => x.id === selectedChar);
-      setMessages((prev) => [
-        ...prev,
-        { role: "agent", text: `${c?.emoji ?? "\u{1F916}"} Sorry, I'm having trouble connecting.` },
-      ]);
-    });
+
+    bridgeRef.current = bridge;
+
     bridge.connect();
+
     return () => {
-      unsubStatus();
-      unsubChunk();
-      unsubThinking();
-      unsubToolCall();
-      unsubDone();
-      unsubError();
-      clearSlowTimer();
+      bridge.disconnect();
     };
   }, []);
 
