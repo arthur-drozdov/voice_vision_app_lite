@@ -10,7 +10,6 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { TelnyxRTC } from "@telnyx/webrtc";
-import type { Call } from "@telnyx/webrtc";
 
 export type TelnyxCallState =
   | "idle"
@@ -59,7 +58,7 @@ export function useTelnyxVoice(
   const [transcripts, setTranscripts] = useState<TelnyxTranscript[]>([]);
 
   const clientRef = useRef<TelnyxRTC | null>(null);
-  const callRef = useRef<Call | null>(null);
+  const callRef = useRef<any>(null);
 
   const updateState = useCallback(
     (s: TelnyxCallState) => {
@@ -89,8 +88,8 @@ export function useTelnyxVoice(
     });
 
     client.on("telnyx.error", (err: any) => {
-      console.error("[Telnyx] Error:", err.code, err.message);
-      setError(err.message || "Connection failed");
+      console.error("[Telnyx] Error:", err?.code, err?.message);
+      setError(err?.message || "Connection failed");
       updateState("error");
     });
 
@@ -103,25 +102,31 @@ export function useTelnyxVoice(
       }
     });
 
-    // Listen for call notifications (state changes, transcripts)
+    // Listen for call state changes via notification events
+    // Call objects don't have .on() — state is tracked via client notifications
     client.on("telnyx.notification", (notification: any) => {
       console.log("[Telnyx] Notification:", notification);
 
       if (notification.type === "callUpdate" && notification.call) {
-        const callState = notification.call.call_state || notification.call.state;
+        const call = notification.call;
+        const callState = call.call_state || call.state;
+        console.log("[Telnyx] Call state:", callState);
 
-        // Map Telnyx call states
         switch (callState) {
           case "ringing":
           case "early":
-            updateState("calling");
+          case "requesting":
+          case "trying":
+          case "recovering":
+            if (state !== "active") updateState("calling");
             break;
           case "active":
             updateState("active");
             break;
-          case "ended":
           case "hangup":
-          case "completed":
+          case "destroy":
+          case "purge":
+          case "done":
             updateState("ended");
             callRef.current = null;
             break;
@@ -145,11 +150,21 @@ export function useTelnyxVoice(
     updateState("connecting");
 
     try {
-      // If not already connected, connect first
+      // If not already connected, connect and wait for ready
       if (!isReady && clientRef.current) {
         await new Promise<void>((resolve, reject) => {
-          client.once("telnyx.ready", () => resolve());
-          client.once("telnyx.error", (err: any) => reject(new Error(err.message)));
+          const onReady = () => {
+            client.off("telnyx.ready", onReady);
+            client.off("telnyx.error", onError);
+            resolve();
+          };
+          const onError = (err: any) => {
+            client.off("telnyx.ready", onReady);
+            client.off("telnyx.error", onError);
+            reject(new Error(err?.message || "Connection failed"));
+          };
+          client.on("telnyx.ready", onReady);
+          client.on("telnyx.error", onError);
           client.connect();
         });
       }
@@ -160,51 +175,21 @@ export function useTelnyxVoice(
       // With anonymous_login, the destination is the AI assistant automatically
       const call = client.newCall({
         destination: assistantId,
-        // The AI assistant picks up automatically — no need for callerName etc
       });
 
       callRef.current = call;
 
-      // Listen for call state changes
-      call.on("stateChange", (callObj: Call) => {
-        console.log("[Telnyx] Call state:", callObj.state);
-        switch (callObj.state) {
-          case "active":
-            updateState("active");
-            break;
-          case "destroy":
-          case "hangup":
-          case "purge":
-            updateState("ended");
-            callRef.current = null;
-            break;
-          default:
-            break;
-        }
-      });
+      console.log("[Telnyx] Call created:", call.id, "state:", call.state);
 
-      // Try to listen for transcript events (JS SDK may have this)
-      try {
-        call.on("telnyx.transcript", (data: any) => {
-          const t: TelnyxTranscript = {
-            role: data.role === "ai" || data.role === "assistant" ? "assistant" : "user",
-            text: data.text || data.transcript || "",
-            timestamp: Date.now(),
-          };
-          console.log("[Telnyx] Transcript:", t);
-          setTranscripts((prev) => [...prev, t]);
-          onTranscript?.(t);
-        });
-      } catch {
-        // Transcript events may not be available in all SDK versions
-      }
+      // Call state changes come via client.on("telnyx.notification") — already set up above
+      // No call.on() needed — Call objects use state property + notification events
 
     } catch (err: any) {
       console.error("[Telnyx] Start error:", err);
       setError(err.message || "Failed to start call");
       updateState("error");
     }
-  }, [initClient, isReady, assistantId, updateState, onTranscript]);
+  }, [initClient, isReady, assistantId, updateState]);
 
   // Stop the call
   const stop = useCallback(() => {
