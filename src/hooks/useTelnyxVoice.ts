@@ -59,6 +59,7 @@ export function useTelnyxVoice(
 
   const clientRef = useRef<TelnyxRTC | null>(null);
   const callRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const updateState = useCallback(
     (s: TelnyxCallState) => {
@@ -171,10 +172,18 @@ export function useTelnyxVoice(
 
       updateState("calling");
 
+      // Create (or reuse) audio element for remote audio
+      if (!audioRef.current) {
+        const audio = new Audio();
+        audio.autoplay = true;
+        audioRef.current = audio;
+      }
+
       // Create a call to the AI assistant
-      // With anonymous_login, the destination is the AI assistant automatically
       const call = client.newCall({
-        destination: assistantId,
+        destinationNumber: assistantId,
+        remoteElement: audioRef.current,
+        audio: true,
       });
 
       callRef.current = call;
@@ -209,6 +218,10 @@ export function useTelnyxVoice(
       }
       clientRef.current = null;
     }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.srcObject = null;
+    }
     setIsReady(false);
     updateState("idle");
   }, [updateState]);
@@ -231,6 +244,11 @@ export function useTelnyxVoice(
       if (clientRef.current) {
         try { clientRef.current.disconnect(); } catch {}
         clientRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.srcObject = null;
+        audioRef.current = null;
       }
     };
   }, []);
