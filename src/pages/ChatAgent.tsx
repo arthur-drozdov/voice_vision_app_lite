@@ -28,6 +28,7 @@ import {
 } from "@/lib/canvasStore";
 import { getSessions, upsertSession, sessionTitle, generateAITitle, updateSessionTitle, deleteSession, type ChatSession } from "@/lib/chatHistoryStore";
 import { analyseConversation, buildMemoryContext } from "@/lib/globalMemoryStore";
+import { fetchMemories, syncChatSession, syncGlobalMemory, syncPreferences, hydrateFromMemoryList, getUserId } from "@/lib/memorySync";
 
 const PENDING_LOAD_KEY = "pending-load-session";
 import { canCreateBoard, getBoardLimit } from "@/lib/subscriptionStore";
@@ -638,6 +639,39 @@ const ChatAgent = () => {
           clearTimeout(slowResponseTimerRef.current);
           slowResponseTimerRef.current = null;
         }
+        // Sync session to DynamoDB memory layer
+        try {
+          const cleanMsgs = messagesRef.current
+            .filter((m) => !m.isStreaming)
+            .map(({ role, text }) => ({ role, text }));
+          if (cleanMsgs.length >= 2 && bridgeRef.current) {
+            const session: ChatSession = {
+              id: sessionIdRef.current,
+              characterId: selectedChar,
+              characterEmoji: char?.emoji ?? '🤖',
+              characterName: char?.name ?? 'AI',
+              messages: cleanMsgs,
+              startedAt: sessionIdRef.current.replace('session-', ''),
+              updatedAt: String(Date.now()),
+              title: sessionTitle(cleanMsgs),
+            };
+            syncChatSession(session, (data) => bridgeRef.current?.sendMemory('memory_add', data));
+            // Also sync global memory (patterns, events, preferences)
+            try {
+              const raw = localStorage.getItem('global-memory-core');
+              if (raw) {
+                const globalMem = JSON.parse(raw);
+                syncGlobalMemory(globalMem, (data) => bridgeRef.current?.sendMemory('memory_add', data));
+              }
+              const prefs = localStorage.getItem('vv-preferences');
+              if (prefs) {
+                syncPreferences(JSON.parse(prefs), (data) => bridgeRef.current?.sendMemory('memory_add', data));
+              }
+            } catch { /* local storage parse errors */ }
+          }
+        } catch (e) {
+          console.warn('[MemorySync] Failed to sync session:', e);
+        }
       },
       onError: (error: string) => {
         setIsGenerating(false);
@@ -656,6 +690,17 @@ const ChatAgent = () => {
       },
       onStatusChange: (s) => setConnectionStatus(s),
       onThinking: () => setIsThinking(true),
+      onMemoryList: (payload) => {
+        console.log('[MemorySync] Received', payload.count, 'memories from backend');
+        const { sessions, globalMemory, preferences } = hydrateFromMemoryList(payload.memories);
+        console.log('[MemorySync] Hydrated:', sessions.length, 'sessions,', globalMemory ? 'global memory' : 'no global', ',', Object.keys(preferences).length, 'prefs');
+      },
+      onMemorySaved: (payload) => {
+        console.log('[MemorySync] Saved:', payload.memoryId);
+      },
+      onMemoryDeleted: (payload) => {
+        console.log('[MemorySync] Deleted:', payload.memoryId);
+      },
     });
 
     bridgeRef.current = bridge;
@@ -666,6 +711,14 @@ const ChatAgent = () => {
       bridge.disconnect();
     };
   }, []);
+
+  // ── Fetch memories from DynamoDB when gateway connects ────────────────────
+  useEffect(() => {
+    if (connectionStatus !== 'connected' || !bridgeRef.current) return;
+    const userId = getUserId();
+    console.log('[MemorySync] Fetching memories for', userId);
+    bridgeRef.current.fetchMemories(userId, 'all');
+  }, [connectionStatus]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
