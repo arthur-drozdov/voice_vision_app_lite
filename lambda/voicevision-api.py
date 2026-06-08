@@ -1,5 +1,5 @@
 """
-VoiceVision API Lambda v11 — SSE with empty-read retry
+VoiceVision API Lambda v12 — SSE empty-read retry + tailscaled binary restored
 
 Architecture:
   Browser → API Gateway WebSocket → Lambda → Tailscale → Gateway /v1/chat/completions (SSE)
