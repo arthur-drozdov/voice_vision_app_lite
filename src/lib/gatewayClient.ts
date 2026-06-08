@@ -14,12 +14,26 @@
 
 export type GatewayStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+export interface MemoryListPayload {
+  type: string;
+  memories: Array<{
+    memoryId: string;
+    userId: string;
+    data: Record<string, unknown>;
+    updatedAt: string;
+  }>;
+  count: number;
+}
+
 export interface GatewayCallbacks {
   onChunk?: (text: string) => void;
   onDone?: () => void;
   onError?: (error: string) => void;
   onStatusChange?: (status: GatewayStatus) => void;
   onThinking?: () => void;
+  onMemoryList?: (payload: MemoryListPayload) => void;
+  onMemorySaved?: (payload: { memoryId: string; status: string }) => void;
+  onMemoryDeleted?: (payload: { memoryId: string; status: string }) => void;
 }
 
 export interface GatewayOptions {
@@ -112,6 +126,18 @@ export class GatewayClient {
             case 'hello':
               console.log('[GatewayClient] Bridge connected, agents:', msg.agents);
               break;
+            case 'memory_list':
+              console.log('[GatewayClient] Received', msg.count, 'memories');
+              this.callbacks.onMemoryList?.(msg as MemoryListPayload);
+              break;
+            case 'memory_saved':
+              console.log('[GatewayClient] Memory saved:', msg.memoryId);
+              this.callbacks.onMemorySaved?.(msg);
+              break;
+            case 'memory_deleted':
+              console.log('[GatewayClient] Memory deleted:', msg.memoryId);
+              this.callbacks.onMemoryDeleted?.(msg);
+              break;
           }
         } catch {
           // Skip non-JSON messages
@@ -165,6 +191,21 @@ export class GatewayClient {
       return;
     }
     this.sendRaw({ text, character, systemPrompt, messages });
+  }
+
+  /** Send a memory operation through the WebSocket */
+  sendMemory(type: string, payload: Record<string, unknown>): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      // Queue memory ops and send on reconnect
+      console.warn('[GatewayClient] Cannot send memory — not connected');
+      return;
+    }
+    this.ws.send(JSON.stringify({ type, ...payload }));
+  }
+
+  /** Fetch all memories for the current user */
+  fetchMemories(userId: string, memoryType: string = 'all'): void {
+    this.sendMemory('memory_get', { userId, memoryType });
   }
 
   cancel(): void {

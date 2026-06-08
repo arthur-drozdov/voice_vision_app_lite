@@ -10,7 +10,7 @@ to the browser via post_to_connection. The handler returns when streaming
 completes or the API Gateway timeout approaches (25s safety margin for 29s max).
 """
 
-import json, os, boto3, subprocess, time, ssl, http.client, urllib.request, urllib.error
+import json, os, boto3, subprocess, time, ssl, http.client, urllib.request, urllib.error, uuid
 from datetime import datetime
 
 TS_SOCKET = "/tmp/tailscale/tailscaled.sock"
@@ -23,6 +23,9 @@ GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_WS_TOKEN",
 
 AGENTS = {"eden": "eden", "noe": "noe", "flo": "flo", 
           "spark": "spark", "luna": "luna"}
+
+MEMORY_TABLE = "voicevision-memory"
+dynamodb = boto3.client("dynamodb", region_name="us-east-1")
 
 # Max time to spend streaming before API Gateway kills us (29s timeout, 25s safe)
 STREAM_TIMEOUT_S = 28
@@ -131,6 +134,112 @@ def lambda_handler(event, context):
             "type": "hello", "version": "2.0.0",
             "agents": list(AGENTS.keys()), "status": "connected"
         })
+        return {'statusCode': 200}
+    
+    if msg_type == 'memory_get':
+        user_id = body.get('userId', conn_id[:12])
+        memory_type = body.get('memoryType', 'all')  # 'all', 'session', 'global', 'preferences'
+        
+        try:
+            items = []
+            if memory_type == 'all':
+                # Query all memories for this user
+                resp = dynamodb.query(
+                    TableName=MEMORY_TABLE,
+                    KeyConditionExpression="#uid = :uid",
+                    ExpressionAttributeNames={"#uid": "userId"},
+                    ExpressionAttributeValues={":uid": {"S": user_id}},
+                    ScanIndexForward=False,  # newest first
+                    Limit=50
+                )
+                items = resp.get('Items', [])
+            else:
+                # Query by memory type prefix
+                resp = dynamodb.query(
+                    TableName=MEMORY_TABLE,
+                    KeyConditionExpression="#uid = :uid AND begins_with(#mid, :prefix)",
+                    ExpressionAttributeNames={"#uid": "userId", "#mid": "memoryId"},
+                    ExpressionAttributeValues={
+                        ":uid": {"S": user_id},
+                        ":prefix": {"S": f"{memory_type}#"}
+                    },
+                    ScanIndexForward=False,
+                    Limit=50
+                )
+                items = resp.get('Items', [])
+            
+            # Parse DynamoDB items to clean objects
+            memories = []
+            for item in items:
+                mem = json.loads(item.get('data', {}).get('S', '{}'))
+                mem['memoryId'] = item.get('memoryId', {}).get('S', '')
+                mem['userId'] = item.get('userId', {}).get('S', '')
+                mem['updatedAt'] = item.get('updatedAt', {}).get('S', '')
+                memories.append(mem)
+            
+            send_ws(domain, stage, conn_id, {
+                "type": "memory_list",
+                "memories": memories,
+                "count": len(memories)
+            })
+        except Exception as e:
+            print(f"memory_get error: {e}")
+            send_ws(domain, stage, conn_id, {"type": "error", "error": f"Memory fetch failed: {str(e)[:200]}"})
+        
+        return {'statusCode': 200}
+    
+    if msg_type == 'memory_add':
+        user_id = body.get('userId', conn_id[:12])
+        memory_type = body.get('memoryType', 'session')  # 'session', 'global', 'preferences'
+        data = body.get('data', {})
+        memory_id = body.get('memoryId', f"{memory_type}#{uuid.uuid4().hex[:12]}")
+        
+        try:
+            dynamodb.put_item(
+                TableName=MEMORY_TABLE,
+                Item={
+                    "userId": {"S": user_id},
+                    "memoryId": {"S": memory_id},
+                    "data": {"S": json.dumps(data)},
+                    "updatedAt": {"S": datetime.utcnow().isoformat() + "Z"}
+                }
+            )
+            send_ws(domain, stage, conn_id, {
+                "type": "memory_saved",
+                "memoryId": memory_id,
+                "status": "ok"
+            })
+        except Exception as e:
+            print(f"memory_add error: {e}")
+            send_ws(domain, stage, conn_id, {"type": "error", "error": f"Memory save failed: {str(e)[:200]}"})
+        
+        return {'statusCode': 200}
+    
+    if msg_type == 'memory_delete':
+        user_id = body.get('userId', conn_id[:12])
+        memory_id = body.get('memoryId', '')
+        
+        if not memory_id:
+            send_ws(domain, stage, conn_id, {"type": "error", "error": "memoryId required"})
+            return {'statusCode': 200}
+        
+        try:
+            dynamodb.delete_item(
+                TableName=MEMORY_TABLE,
+                Key={
+                    "userId": {"S": user_id},
+                    "memoryId": {"S": memory_id}
+                }
+            )
+            send_ws(domain, stage, conn_id, {
+                "type": "memory_deleted",
+                "memoryId": memory_id,
+                "status": "ok"
+            })
+        except Exception as e:
+            print(f"memory_delete error: {e}")
+            send_ws(domain, stage, conn_id, {"type": "error", "error": f"Memory delete failed: {str(e)[:200]}"})
+        
         return {'statusCode': 200}
     
     if msg_type == 'chat':
