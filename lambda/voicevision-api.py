@@ -1,13 +1,20 @@
 """
-VoiceVision API Lambda v13 — SSE stream timeout 28→80s, retries 5→30, HTTP read 30→120s
+VoiceVision API Lambda v14 — Notifications: persistent session routing + webhook + polling
 
 Architecture:
   Browser → API Gateway WebSocket → Lambda → Tailscale → Gateway /v1/chat/completions (SSE)
+  OpenClaw cron → Function URL POST /webhook → Lambda → DynamoDB → WebSocket (real-time)
+  Browser → WebSocket get_notifications (poll every 30s) → Lambda → DynamoDB → response
 
-The Lambda handler processes the chat request synchronously — it makes a
-streaming HTTP request to the gateway, parses SSE tokens, and forwards each
-to the browser via post_to_connection. The handler returns when streaming
-completes or the API Gateway timeout approaches (25s safety margin for 29s max).
+Session routing:
+  $connect → store {userId, connectionId} in voicevision-memory (SK: _wsconn)
+  $disconnect → delete
+  Webhook → lookup connectionId → post_to_connection OR store for polling
+
+Tables (single DynamoDB table: voicevision-memory):
+  - Memories:  PK=userId, SK=session#... | global#... | prefs#...
+  - Connection: PK=userId, SK=_wsconn  (data: {connectionId, lastSeen})
+  - Notifications: PK=userId, SK=notif#<id>  (data: {message, type, createdAt, read, delivered})
 """
 
 import json, os, boto3, subprocess, time, ssl, http.client, urllib.request, urllib.error, uuid
@@ -100,6 +107,7 @@ def ensure_tailscale():
 
 
 def send_ws(domain, stage, conn_id, data):
+    """Send a message to a WebSocket connection."""
     try:
         client = boto3.client('apigatewaymanagementapi',
             endpoint_url=f"https://{domain}/{stage}")
@@ -109,22 +117,271 @@ def send_ws(domain, stage, conn_id, data):
         print(f"ws send error: {e}")
 
 
+def send_ws_by_connid(conn_id, data):
+    """Send a message by connection ID (uses known domain/stage)."""
+    try:
+        client = boto3.client('apigatewaymanagementapi',
+            endpoint_url="https://184z3y4uxi.execute-api.us-east-1.amazonaws.com/prod")
+        client.post_to_connection(ConnectionId=conn_id,
+            Data=json.dumps(data).encode())
+        return True
+    except Exception as e:
+        print(f"ws send by connid error: {e}")
+        return False
+
+
+# ── Connection Tracking ──────────────────────────────────────────────
+
+def store_connection(user_id, conn_id):
+    """Store WebSocket connection mapping for real-time notification delivery."""
+    try:
+        dynamodb.put_item(
+            TableName=MEMORY_TABLE,
+            Item={
+                "userId": {"S": user_id},
+                "memoryId": {"S": "_wsconn"},
+                "data": {"S": json.dumps({
+                    "connectionId": conn_id,
+                    "lastSeen": datetime.utcnow().isoformat() + "Z"
+                })},
+                "updatedAt": {"S": datetime.utcnow().isoformat() + "Z"}
+            }
+        )
+        print(f"Connection stored: {user_id} -> {conn_id}")
+    except Exception as e:
+        print(f"store_connection error: {e}")
+
+
+def delete_connection(user_id):
+    """Remove connection mapping on disconnect."""
+    try:
+        dynamodb.delete_item(
+            TableName=MEMORY_TABLE,
+            Key={"userId": {"S": user_id}, "memoryId": {"S": "_wsconn"}}
+        )
+        print(f"Connection removed: {user_id}")
+    except Exception as e:
+        print(f"delete_connection error: {e}")
+
+
+def get_connection(user_id):
+    """Look up the current WebSocket connectionId for a user."""
+    try:
+        resp = dynamodb.get_item(
+            TableName=MEMORY_TABLE,
+            Key={"userId": {"S": user_id}, "memoryId": {"S": "_wsconn"}}
+        )
+        item = resp.get('Item')
+        if item:
+            data = json.loads(item.get('data', {}).get('S', '{}'))
+            return data.get('connectionId')
+    except Exception as e:
+        print(f"get_connection error: {e}")
+    return None
+
+
+# ── Notification Storage ─────────────────────────────────────────────
+
+def save_notification(user_id, message, notif_type="reminder"):
+    """Store a notification for a user."""
+    notif_id = f"notif#{uuid.uuid4().hex[:12]}"
+    now = datetime.utcnow().isoformat() + "Z"
+    try:
+        dynamodb.put_item(
+            TableName=MEMORY_TABLE,
+            Item={
+                "userId": {"S": user_id},
+                "memoryId": {"S": notif_id},
+                "data": {"S": json.dumps({
+                    "message": message,
+                    "type": notif_type,
+                    "createdAt": now,
+                    "read": False,
+                    "delivered": False
+                })},
+                "updatedAt": {"S": now}
+            }
+        )
+        print(f"Notification saved: {notif_id} for {user_id}")
+        return notif_id
+    except Exception as e:
+        print(f"save_notification error: {e}")
+        return None
+
+
+def get_notifications(user_id, mark_as_delivered=True):
+    """Get unread notifications for a user. Optionally mark as delivered."""
+    try:
+        resp = dynamodb.query(
+            TableName=MEMORY_TABLE,
+            KeyConditionExpression="#uid = :uid AND begins_with(#mid, :prefix)",
+            ExpressionAttributeNames={"#uid": "userId", "#mid": "memoryId"},
+            ExpressionAttributeValues={
+                ":uid": {"S": user_id},
+                ":prefix": {"S": "notif#"}
+            },
+            ScanIndexForward=True,
+            Limit=20
+        )
+        items = resp.get('Items', [])
+        notifications = []
+        for item in items:
+            data = json.loads(item.get('data', {}).get('S', '{}'))
+            if not data.get('read'):
+                data['notificationId'] = item.get('memoryId', {}).get('S', '')
+                notifications.append(data)
+        
+        # Mark as delivered if there's an active connection
+        if mark_as_delivered and notifications:
+            for n in notifications:
+                nid = n.get('notificationId')
+                if nid:
+                    try:
+                        # Update read status to delivered
+                        data_copy = dict(n)
+                        data_copy['delivered'] = True
+                        del data_copy['notificationId']
+                        dynamodb.update_item(
+                            TableName=MEMORY_TABLE,
+                            Key={"userId": {"S": user_id}, "memoryId": {"S": nid}},
+                            UpdateExpression="SET #d = :d",
+                            ExpressionAttributeNames={"#d": "data"},
+                            ExpressionAttributeValues={":d": {"S": json.dumps(data_copy)}}
+                        )
+                    except Exception as e:
+                        print(f"mark delivered error: {e}")
+        
+        return notifications
+    except Exception as e:
+        print(f"get_notifications error: {e}")
+        return []
+
+
+def ack_notification(user_id, notif_id):
+    """Mark a notification as read (delete it)."""
+    try:
+        dynamodb.delete_item(
+            TableName=MEMORY_TABLE,
+            Key={"userId": {"S": user_id}, "memoryId": {"S": notif_id}}
+        )
+        return True
+    except Exception as e:
+        print(f"ack_notification error: {e}")
+        return False
+
+
+# ── Webhook Handler (Function URL) ────────────────────────────────────
+
+def handle_webhook(event):
+    """Handle POST /webhook — receives cron announcements from OpenClaw."""
+    print(f"Webhook received: {json.dumps(event, default=str)[:500]}")
+    
+    http_method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
+    raw_path = event.get('rawPath', '/')
+    
+    if http_method == 'GET':
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({"ok": True, "service": "voicevision-webhook"})
+        }
+    
+    if http_method != 'POST':
+        return {'statusCode': 405, 'body': 'Method Not Allowed'}
+    
+    try:
+        body = json.loads(event.get('body', '{}'))
+    except json.JSONDecodeError:
+        return {'statusCode': 400, 'body': 'Invalid JSON'}
+    
+    user_id = body.get('userId', '')
+    message = body.get('message', '')
+    notif_type = body.get('type', 'reminder')
+    
+    if not user_id or not message:
+        return {'statusCode': 400, 'body': json.dumps({"error": "userId and message required"})}
+    
+    # Store notification
+    notif_id = save_notification(user_id, message, notif_type)
+    
+    # Try real-time delivery if user is online
+    conn_id = get_connection(user_id)
+    delivered = False
+    if conn_id:
+        delivered = send_ws_by_connid(conn_id, {
+            "type": "notification",
+            "notificationId": notif_id,
+            "message": message,
+            "notificationType": notif_type
+        })
+        if delivered:
+            print(f"Real-time delivery to {user_id} via {conn_id}")
+            # Mark as delivered
+            ack_notification(user_id, notif_id)
+    
+    return {
+        'statusCode': 200,
+        'headers': {'Content-Type': 'application/json'},
+        'body': json.dumps({
+            "ok": True,
+            "notificationId": notif_id,
+            "delivered": delivered,
+            "storedForPolling": not delivered
+        })
+    }
+
+
+# ── Main Lambda Handler ───────────────────────────────────────────────
+
 def lambda_handler(event, context):
     global _tailscale_ready
+    
+    # ── Function URL (REST) events ──────────────────────────
+    if 'rawPath' in event or ('requestContext' in event and 'http' in event.get('requestContext', {})):
+        return handle_webhook(event)
+    
+    # ── WebSocket events ────────────────────────────────────
     route = event.get('requestContext', {}).get('routeKey', '$default')
     conn_id = event['requestContext']['connectionId']
     domain = event['requestContext']['domainName']
     stage = event['requestContext']['stage']
     
+    # Extract userId from query string parameters (set by frontend on connect)
+    user_id = None
+    qs = event.get('queryStringParameters', {}) or {}
+    user_id = qs.get('userId', '')
+    
     if route == '$connect':
-        print(f"Connected: {conn_id}")
+        print(f"Connected: {conn_id}" + (f" user={user_id[:12]}" if user_id else ""))
+        if user_id:
+            store_connection(user_id, conn_id)
         return {'statusCode': 200}
     
     if route == '$disconnect':
         print(f"Disconnected: {conn_id}")
+        # Find and delete connection by scanning for this conn_id
+        # (userId not available on disconnect)
+        try:
+            # We need to find which userId had this connectionId
+            # Use a scan with filter — lightweight for our scale
+            resp = dynamodb.scan(
+                TableName=MEMORY_TABLE,
+                FilterExpression="#mid = :mid",
+                ExpressionAttributeNames={"#mid": "memoryId"},
+                ExpressionAttributeValues={":mid": {"S": "_wsconn"}},
+                Limit=10
+            )
+            for item in resp.get('Items', []):
+                data = json.loads(item.get('data', {}).get('S', '{}'))
+                if data.get('connectionId') == conn_id:
+                    uid = item.get('userId', {}).get('S', '')
+                    delete_connection(uid)
+                    break
+        except Exception as e:
+            print(f"disconnect cleanup error: {e}")
         return {'statusCode': 200}
     
-    # All other routes need Tailscale
+    # ── All other routes need Tailscale ─────────────────────
     if not _tailscale_ready:
         ensure_tailscale()
     
@@ -132,6 +389,11 @@ def lambda_handler(event, context):
     msg_type = body.get('type', 'chat')
     
     if msg_type == 'hello':
+        # Track userId from hello message (fallback if not in connect URL)
+        hello_user_id = body.get('userId', user_id or conn_id[:12])
+        if not user_id and hello_user_id:
+            store_connection(hello_user_id, conn_id)
+        
         send_ws(domain, stage, conn_id, {
             "type": "hello", "version": "2.0.0",
             "agents": list(AGENTS.keys()), "status": "connected"
@@ -143,8 +405,33 @@ def lambda_handler(event, context):
         send_ws(domain, stage, conn_id, {"type": "pong"})
         return {'statusCode': 200}
     
+    # ── Notification handlers ──────────────────────────────
+    
+    if msg_type == 'get_notifications':
+        notif_user_id = body.get('userId', user_id or conn_id[:12])
+        notifications = get_notifications(notif_user_id)
+        send_ws(domain, stage, conn_id, {
+            "type": "notifications",
+            "notifications": notifications,
+            "count": len(notifications)
+        })
+        return {'statusCode': 200}
+    
+    if msg_type == 'ack_notification':
+        notif_user_id = body.get('userId', user_id or conn_id[:12])
+        notif_id = body.get('notificationId', '')
+        if notif_id:
+            ack_notification(notif_user_id, notif_id)
+            send_ws(domain, stage, conn_id, {
+                "type": "notification_acked",
+                "notificationId": notif_id
+            })
+        return {'statusCode': 200}
+    
+    # ── Memory handlers ────────────────────────────────────
+    
     if msg_type == 'memory_get':
-        user_id = body.get('userId', conn_id[:12])
+        mem_user_id = body.get('userId', conn_id[:12])
         memory_type = body.get('memoryType', 'all')  # 'all', 'session', 'global', 'preferences'
         
         try:
@@ -155,7 +442,7 @@ def lambda_handler(event, context):
                     TableName=MEMORY_TABLE,
                     KeyConditionExpression="#uid = :uid",
                     ExpressionAttributeNames={"#uid": "userId"},
-                    ExpressionAttributeValues={":uid": {"S": user_id}},
+                    ExpressionAttributeValues={":uid": {"S": mem_user_id}},
                     ScanIndexForward=False,  # newest first
                     Limit=50
                 )
@@ -167,7 +454,7 @@ def lambda_handler(event, context):
                     KeyConditionExpression="#uid = :uid AND begins_with(#mid, :prefix)",
                     ExpressionAttributeNames={"#uid": "userId", "#mid": "memoryId"},
                     ExpressionAttributeValues={
-                        ":uid": {"S": user_id},
+                        ":uid": {"S": mem_user_id},
                         ":prefix": {"S": f"{memory_type}#"}
                     },
                     ScanIndexForward=False,
@@ -175,11 +462,14 @@ def lambda_handler(event, context):
                 )
                 items = resp.get('Items', [])
             
-            # Parse DynamoDB items to clean objects
+            # Parse DynamoDB items to clean objects (exclude system items)
             memories = []
             for item in items:
+                mid = item.get('memoryId', {}).get('S', '')
+                if mid.startswith('_') or mid.startswith('notif#'):
+                    continue  # Skip system/notification items
                 mem = json.loads(item.get('data', {}).get('S', '{}'))
-                mem['memoryId'] = item.get('memoryId', {}).get('S', '')
+                mem['memoryId'] = mid
                 mem['userId'] = item.get('userId', {}).get('S', '')
                 mem['updatedAt'] = item.get('updatedAt', {}).get('S', '')
                 memories.append(mem)
@@ -196,7 +486,7 @@ def lambda_handler(event, context):
         return {'statusCode': 200}
     
     if msg_type == 'memory_add':
-        user_id = body.get('userId', conn_id[:12])
+        mem_user_id = body.get('userId', conn_id[:12])
         memory_type = body.get('memoryType', 'session')  # 'session', 'global', 'preferences'
         data = body.get('data', {})
         memory_id = body.get('memoryId', f"{memory_type}#{uuid.uuid4().hex[:12]}")
@@ -205,7 +495,7 @@ def lambda_handler(event, context):
             dynamodb.put_item(
                 TableName=MEMORY_TABLE,
                 Item={
-                    "userId": {"S": user_id},
+                    "userId": {"S": mem_user_id},
                     "memoryId": {"S": memory_id},
                     "data": {"S": json.dumps(data)},
                     "updatedAt": {"S": datetime.utcnow().isoformat() + "Z"}
@@ -223,7 +513,7 @@ def lambda_handler(event, context):
         return {'statusCode': 200}
     
     if msg_type == 'memory_delete':
-        user_id = body.get('userId', conn_id[:12])
+        mem_user_id = body.get('userId', conn_id[:12])
         memory_id = body.get('memoryId', '')
         
         if not memory_id:
@@ -234,7 +524,7 @@ def lambda_handler(event, context):
             dynamodb.delete_item(
                 TableName=MEMORY_TABLE,
                 Key={
-                    "userId": {"S": user_id},
+                    "userId": {"S": mem_user_id},
                     "memoryId": {"S": memory_id}
                 }
             )
@@ -248,6 +538,8 @@ def lambda_handler(event, context):
             send_ws(domain, stage, conn_id, {"type": "error", "error": f"Memory delete failed: {str(e)[:200]}"})
         
         return {'statusCode': 200}
+    
+    # ── Chat handler ────────────────────────────────────────
     
     if msg_type == 'chat':
         character = body.get('character', 'eden')

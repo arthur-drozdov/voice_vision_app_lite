@@ -25,6 +25,25 @@ export interface MemoryListPayload {
   count: number;
 }
 
+export interface NotificationPayload {
+  notificationId: string;
+  message: string;
+  notificationType: string;
+}
+
+export interface NotificationListPayload {
+  type: string;
+  notifications: Array<{
+    notificationId: string;
+    message: string;
+    type: string;
+    createdAt: string;
+    read: boolean;
+    delivered: boolean;
+  }>;
+  count: number;
+}
+
 export interface GatewayCallbacks {
   onChunk?: (text: string) => void;
   onDone?: () => void;
@@ -34,6 +53,8 @@ export interface GatewayCallbacks {
   onMemoryList?: (payload: MemoryListPayload) => void;
   onMemorySaved?: (payload: { memoryId: string; status: string }) => void;
   onMemoryDeleted?: (payload: { memoryId: string; status: string }) => void;
+  onNotification?: (payload: NotificationPayload) => void;
+  onNotifications?: (payload: NotificationListPayload) => void;
 }
 
 export interface GatewayOptions {
@@ -61,13 +82,14 @@ export class GatewayClient {
   private readonly maxReconnectAttempts: number;
 
   constructor(options: GatewayOptions = {}, callbacks: GatewayCallbacks = {}) {
-    this.wsUrl = options.wsUrl ?? (
-      // In dev (localhost): use Vite proxy to the bridge
-      // In production: use API Gateway WebSocket → Lambda → Tailscale → OpenClaw
+    const baseUrl = options.wsUrl ?? (
       window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
         ? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/chat`
         : PROD_WS_URL
     );
+    // Append userId for persistent session routing (notifications, reminders)
+    const userId = (typeof localStorage !== 'undefined' && localStorage.getItem('vv-user-id')) || '';
+    this.wsUrl = userId ? `${baseUrl}?userId=${encodeURIComponent(userId)}` : baseUrl;
     this.reconnectInterval = options.reconnectInterval ?? 3000;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 20;
     this.callbacks = callbacks;
@@ -140,6 +162,17 @@ export class GatewayClient {
             case 'memory_deleted':
               console.log('[GatewayClient] Memory deleted:', msg.memoryId);
               this.callbacks.onMemoryDeleted?.(msg);
+              break;
+            case 'notification':
+              console.log('[GatewayClient] Real-time notification:', msg.message?.slice(0, 50));
+              this.callbacks.onNotification?.(msg as NotificationPayload);
+              break;
+            case 'notifications':
+              console.log('[GatewayClient] Notification poll:', msg.count);
+              this.callbacks.onNotifications?.(msg as NotificationListPayload);
+              break;
+            case 'notification_acked':
+              console.log('[GatewayClient] Notification acked:', msg.notificationId);
               break;
           }
         } catch {
@@ -215,6 +248,16 @@ export class GatewayClient {
   /** Fetch all memories for the current user */
   fetchMemories(userId: string, memoryType: string = 'all'): void {
     this.sendMemory('memory_get', { userId, memoryType });
+  }
+
+  /** Poll for pending notifications (call every 30s) */
+  pollNotifications(userId: string): void {
+    this.sendMemory('get_notifications', { userId });
+  }
+
+  /** Mark a notification as read */
+  ackNotification(userId: string, notificationId: string): void {
+    this.sendMemory('ack_notification', { userId, notificationId });
   }
 
   cancel(): void {

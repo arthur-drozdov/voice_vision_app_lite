@@ -701,6 +701,32 @@ const ChatAgent = () => {
       onMemoryDeleted: (payload) => {
         console.log('[MemorySync] Deleted:', payload.memoryId);
       },
+      onNotification: (payload) => {
+        console.log('[Notification] Real-time:', payload.message?.slice(0, 50));
+        // Show as a chat message from the agent
+        setMessages((prev) => [...prev, {
+          role: 'agent',
+          text: `🔔 ${payload.message}`,
+          timestamp: new Date().toISOString(),
+          character: prev[prev.length - 1]?.character || 'luna',
+        }]);
+        bridgeRef.current?.ackNotification(getUserId(), payload.notificationId);
+      },
+      onNotifications: (payload) => {
+        // Poll response — show any missed notifications
+        if (payload.count > 0) {
+          console.log('[Notification] Poll found', payload.count, 'pending');
+          for (const n of payload.notifications) {
+            setMessages((prev) => [...prev, {
+              role: 'agent',
+              text: `🔔 ${n.message}`,
+              timestamp: n.createdAt,
+              character: prev[prev.length - 1]?.character || 'luna',
+            }]);
+            bridgeRef.current?.ackNotification(getUserId(), n.notificationId);
+          }
+        }
+      },
     });
 
     bridgeRef.current = bridge;
@@ -718,6 +744,18 @@ const ChatAgent = () => {
     const userId = getUserId();
     console.log('[MemorySync] Fetching memories for', userId);
     bridgeRef.current.fetchMemories(userId, 'all');
+  }, [connectionStatus]);
+
+  // ── Poll for notifications every 30s ─────────────────────────────────────
+  useEffect(() => {
+    if (connectionStatus !== 'connected' || !bridgeRef.current) return;
+    const userId = getUserId();
+    console.log('[Notification] Starting poll (every 30s)');
+    bridgeRef.current.pollNotifications(userId); // initial fetch
+    const interval = setInterval(() => {
+      bridgeRef.current?.pollNotifications(userId);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [connectionStatus]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
