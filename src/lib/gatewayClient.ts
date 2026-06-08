@@ -52,6 +52,7 @@ export class GatewayClient {
   private callbacks: GatewayCallbacks;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private shouldReconnect = true;
   private messageQueue: Array<{ text: string; character: string; systemPrompt?: string; messages?: { role: string; text: string }[] }> = [];
 
@@ -68,7 +69,7 @@ export class GatewayClient {
         : PROD_WS_URL
     );
     this.reconnectInterval = options.reconnectInterval ?? 3000;
-    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 20;
     this.callbacks = callbacks;
   }
 
@@ -98,6 +99,8 @@ export class GatewayClient {
       this.ws.onopen = () => {
         this.setStatus('connected');
         this.reconnectAttempts = 0;
+        // Start keepalive ping to prevent API Gateway 10-min idle timeout
+        this.startKeepalive();
         // Flush any queued messages
         for (const msg of this.messageQueue) {
           this.sendRaw(msg);
@@ -145,13 +148,19 @@ export class GatewayClient {
       };
 
       this.ws.onclose = () => {
-        this.setStatus('disconnected');
-        this.tryReconnect();
+        this.stopKeepalive();
+        if (this.shouldReconnect) {
+          this.setStatus('disconnected');
+          this.tryReconnect();
+        }
       };
 
       this.ws.onerror = () => {
-        this.setStatus('error');
-        this.tryReconnect();
+        this.stopKeepalive();
+        if (this.shouldReconnect) {
+          this.setStatus('error');
+          this.tryReconnect();
+        }
       };
     } catch (e) {
       this.setStatus('error');
@@ -214,8 +223,26 @@ export class GatewayClient {
     }
   }
 
+  private startKeepalive(): void {
+    this.stopKeepalive();
+    // Send ping every 5 minutes to prevent API Gateway 10-min idle timeout
+    this.keepaliveTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 5 * 60 * 1000);
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
+    }
+  }
+
   disconnect(): void {
     this.shouldReconnect = false;
+    this.stopKeepalive();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

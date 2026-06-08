@@ -136,6 +136,11 @@ def lambda_handler(event, context):
         })
         return {'statusCode': 200}
     
+    if msg_type == 'ping':
+        # Keepalive ping — prevent API Gateway idle timeout
+        send_ws(domain, stage, conn_id, {"type": "pong"})
+        return {'statusCode': 200}
+    
     if msg_type == 'memory_get':
         user_id = body.get('userId', conn_id[:12])
         memory_type = body.get('memoryType', 'all')  # 'all', 'session', 'global', 'preferences'
