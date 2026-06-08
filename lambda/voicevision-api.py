@@ -1,5 +1,5 @@
 """
-VoiceVision API Lambda v12 — SSE empty-read retry + tailscaled binary restored
+VoiceVision API Lambda v13 — SSE stream timeout 28→80s, retries 5→30, HTTP read 30→120s
 
 Architecture:
   Browser → API Gateway WebSocket → Lambda → Tailscale → Gateway /v1/chat/completions (SSE)
@@ -27,8 +27,10 @@ AGENTS = {"eden": "eden", "noe": "noe", "flo": "flo",
 MEMORY_TABLE = "voicevision-memory"
 dynamodb = boto3.client("dynamodb", region_name="us-east-1")
 
-# Max time to spend streaming before API Gateway kills us (29s timeout, 25s safe)
-STREAM_TIMEOUT_S = 28
+# Max time to spend streaming.  API Gateway WebSocket may terminate the
+# handler at 29s, but post_to_connection calls continue to work while the
+# Lambda container is alive (up to 180s).  Set generously for reasoning models.
+STREAM_TIMEOUT_S = 80
 
 _tailscale_ready = False
 
@@ -288,7 +290,7 @@ def lambda_handler(event, context):
                     },
                     method="POST")
                 
-                resp = urllib.request.urlopen(req, context=ctx, timeout=30)
+                resp = urllib.request.urlopen(req, context=ctx, timeout=120)
             
                 if resp.status != 200:
                     err_body = resp.read().decode()[:500]
@@ -310,9 +312,10 @@ def lambda_handler(event, context):
                     raw = resp.read(4096)
                     if not raw:
                         # Empty read may be a temporary model pause, not EOF.
-                        # Retry up to 5 times (1.5s total) before treating as stream end.
+                        # Reasoning models can pause 5-15s between token bursts.
+                        # Retry up to 30 times (9s total) before treating as stream end.
                         empty_reads += 1
-                        if empty_reads > 5:
+                        if empty_reads > 30:
                             print(f"Stream ended without [DONE] after {chunk_count} chunks")
                             break
                         time.sleep(0.3)
