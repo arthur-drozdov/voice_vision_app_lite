@@ -1,5 +1,5 @@
 """
-VoiceVision API Lambda v7 — Synchronous SSE Streaming
+VoiceVision API Lambda v11 — SSE with empty-read retry
 
 Architecture:
   Browser → API Gateway WebSocket → Lambda → Tailscale → Gateway /v1/chat/completions (SSE)
@@ -299,6 +299,7 @@ def lambda_handler(event, context):
                 # Read SSE stream — use byte buffer to avoid splitting multi-byte UTF-8
                 buf = b""
                 chunk_count = 0
+                empty_reads = 0
                 while True:
                     elapsed = time.time() - start_time
                     if elapsed > STREAM_TIMEOUT_S:
@@ -308,7 +309,15 @@ def lambda_handler(event, context):
                     
                     raw = resp.read(4096)
                     if not raw:
-                        break
+                        # Empty read may be a temporary model pause, not EOF.
+                        # Retry up to 5 times (1.5s total) before treating as stream end.
+                        empty_reads += 1
+                        if empty_reads > 5:
+                            print(f"Stream ended without [DONE] after {chunk_count} chunks")
+                            break
+                        time.sleep(0.3)
+                        continue
+                    empty_reads = 0
                     buf += raw
                     
                     # Process complete lines (split on \n byte)
