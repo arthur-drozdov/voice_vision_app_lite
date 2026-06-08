@@ -41,15 +41,16 @@ jobs:
             --cache-control "max-age=300,public"
           echo "Full dist/ synced to S3 (including ONNX/WASM/VAD files)"
 
-      - name: Copy VAD/ONNX files to assets/
+      - name: Copy VAD/ONNX/WASM files to assets/
         run: |
           # The Vite build puts ORT/VAD files at root but the compiled JS
           # references them from /assets/. Copy them to both locations.
-          for f in ort-wasm-simd-threaded*.mjs ort-wasm-simd-threaded*.wasm silero_vad_*.onnx vad.worklet.bundle.min.js; do
+          cd dist
+          for f in *.mjs *.wasm silero_vad_*.onnx vad.worklet.bundle.min.js; do
             aws s3 cp "s3://voicevision.sonnia.ai/$f" "s3://voicevision.sonnia.ai/assets/$f" \
               --region us-east-1 --metadata-directive REPLACE 2>/dev/null || true
           done
-          echo "VAD files mirrored to /assets/"
+          echo "ORT/VAD files mirrored to /assets/"
 
       - name: Set long cache for static assets
         run: |
