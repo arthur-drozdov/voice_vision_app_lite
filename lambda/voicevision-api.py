@@ -539,6 +539,139 @@ def lambda_handler(event, context):
         
         return {'statusCode': 200}
     
+    # ── Canvas generation ──────────────────────────────────
+    
+    if msg_type == 'canvas_generate':
+        """
+        Generate structured canvas content from chat messages.
+        Sends conversation + format to OpenClaw for AI-powered transformation
+        into mindmaps, summaries, calendars, todos, or tables.
+        """
+        canvas_format = body.get('format', 'summary')
+        canvas_messages = body.get('messages', [])
+        character_name = body.get('characterName', 'AI')
+        
+        # Build a prompt that asks the model to generate structured content
+        format_prompts = {
+            'mindmap': 'Create a hierarchical mindmap from this conversation. Output as JSON: {"type":"mindmap","root":{"label":"Main Topic","children":[{"label":"Branch","children":[]}]}}. Keep branches concise.',
+            'summary': 'Write a clear, well-structured summary of this conversation. Use markdown with headings, bullet points, and key takeaways. Be thorough but concise.',
+            'calendar': 'Extract any dates, events, deadlines, or scheduled items mentioned in this conversation. Output as JSON: {"type":"calendar","events":[{"date":"YYYY-MM-DD","title":"Event","description":"Details"}]}. Infer dates relative to today if not explicit.',
+            'todo': 'Extract action items, tasks, and to-dos from this conversation. Output as JSON: {"type":"todo","items":[{"text":"Task","done":false,"priority":"high|medium|low"}]}.',
+            'table': 'Create a comparison table from this conversation. Output as markdown table with clear columns and rows. Be data-driven and accurate.',
+        }
+        
+        format_prompt = format_prompts.get(canvas_format, format_prompts['summary'])
+        
+        # Build conversation context
+        conv_text = ""
+        for msg in (canvas_messages or [])[-20:]:  # Last 20 messages max
+            role = msg.get('role', 'user')
+            text = msg.get('text', '')[:500]
+            conv_text += f"{role.upper()}: {text}\n"
+        
+        system_prompt = f"""You are a canvas generator for {character_name}. 
+{format_prompt}
+
+Rules:
+- Output ONLY the JSON or markdown content requested — no preamble, no "here's the..."
+- Be faithful to the conversation — don't invent facts
+- If format is JSON, ensure valid JSON"""
+        
+        agent_id = AGENTS.get(body.get('character', 'luna'), 'default')
+        model = f"openclaw/{agent_id}"
+        
+        send_ws(domain, stage, conn_id, {"type": "status", "status": "generating"})
+        
+        req_body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Generate a {canvas_format} from this conversation:\n\n{conv_text}"}
+            ],
+            "stream": False,
+            "max_tokens": 2048,
+            "temperature": 0.3
+        }
+        
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            
+            url = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/v1/chat/completions"
+            req = urllib.request.Request(url,
+                data=json.dumps(req_body).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {GATEWAY_TOKEN}",
+                },
+                method="POST")
+            
+            resp = urllib.request.urlopen(req, context=ctx, timeout=120)
+            raw = resp.read().decode('utf-8', errors='replace')
+            
+            if resp.status != 200:
+                send_ws(domain, stage, conn_id, {"type": "error", "error": f"Canvas generation failed: {raw[:200]}"})
+                return {'statusCode': 200}
+            
+            # Parse the OpenAI response
+            result = json.loads(raw)
+            content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+            
+            # Try to parse structured JSON from the response
+            structured = None
+            if canvas_format in ('mindmap', 'calendar', 'todo'):
+                try:
+                    # Extract JSON from markdown code blocks or raw text
+                    json_match = content.strip()
+                    if '```json' in json_match:
+                        json_match = json_match.split('```json')[1].split('```')[0].strip()
+                    elif '```' in json_match:
+                        json_match = json_match.split('```')[1].split('```')[0].strip()
+                    structured = json.loads(json_match)
+                except (json.JSONDecodeError, IndexError):
+                    # Fallback: return as markdown
+                    structured = None
+            
+            send_ws(domain, stage, conn_id, {
+                "type": "canvas_generated",
+                "content": content,
+                "structured": structured,
+                "format": canvas_format
+            })
+            
+        except Exception as e:
+            err_str = str(e)
+            if "502" in err_str or "Busy" in err_str:
+                _tailscale_ready = False
+                try:
+                    ensure_tailscale()
+                    # Retry once
+                    req2 = urllib.request.Request(url,
+                        data=json.dumps(req_body).encode(),
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {GATEWAY_TOKEN}",
+                        },
+                        method="POST")
+                    resp2 = urllib.request.urlopen(req2, context=ctx, timeout=120)
+                    raw2 = resp2.read().decode('utf-8', errors='replace')
+                    result2 = json.loads(raw2)
+                    content2 = result2.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    send_ws(domain, stage, conn_id, {
+                        "type": "canvas_generated",
+                        "content": content2,
+                        "structured": None,
+                        "format": canvas_format
+                    })
+                    return {'statusCode': 200}
+                except:
+                    pass
+            print(f"Canvas generation error: {e}")
+            send_ws(domain, stage, conn_id, {"type": "error", "error": f"Canvas generation failed: {err_str[:200]}"})
+        
+        return {'statusCode': 200}
+    
     # ── Chat handler ────────────────────────────────────────
     
     if msg_type == 'chat':

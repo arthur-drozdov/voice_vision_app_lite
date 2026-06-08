@@ -55,6 +55,7 @@ export interface GatewayCallbacks {
   onMemoryDeleted?: (payload: { memoryId: string; status: string }) => void;
   onNotification?: (payload: NotificationPayload) => void;
   onNotifications?: (payload: NotificationListPayload) => void;
+  onCanvasGenerated?: (payload: { content: string; structured: any; format: string }) => void;
 }
 
 export interface GatewayOptions {
@@ -174,6 +175,10 @@ export class GatewayClient {
             case 'notification_acked':
               console.log('[GatewayClient] Notification acked:', msg.notificationId);
               break;
+            case 'canvas_generated':
+              console.log('[GatewayClient] Canvas generated:', msg.format);
+              this.callbacks.onCanvasGenerated?.(msg);
+              break;
           }
         } catch {
           // Skip non-JSON messages
@@ -258,6 +263,21 @@ export class GatewayClient {
   /** Mark a notification as read */
   ackNotification(userId: string, notificationId: string): void {
     this.sendMemory('ack_notification', { userId, notificationId });
+  }
+
+  /** Generate canvas content from chat messages */
+  generateCanvas(messages: Array<{ role: string; text: string }>, format: string, characterName: string, character: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('[GatewayClient] Cannot generate canvas — not connected');
+      return;
+    }
+    this.ws.send(JSON.stringify({
+      type: 'canvas_generate',
+      messages,
+      format,
+      characterName,
+      character,
+    }));
   }
 
   cancel(): void {
