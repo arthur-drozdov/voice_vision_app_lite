@@ -5,13 +5,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Glass utility — makes Card elements match GlassContainer appearance */
+/* Glass utility — backdrop-filter clipped to border-radius via pseudo-element */
 .glass {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   background: hsl(var(--surface-glass) / 0.62) !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   border-color: hsl(var(--border) / 0.15) !important;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: -1;
 }
 
 /* Hide default scrollbar, show subtle thin indicator */
