@@ -46,7 +46,7 @@ const BUILT_IN_VOICES: VoiceClone[] = [
   { voice_id: "Amy", name: "Amy (British, bright)", ref_text: "Polly generative voice — bright and friendly British English", is_default: false, has_ref: true, is_conditioned: true },
   { voice_id: "Brian", name: "Brian (British, male)", ref_text: "Polly generative voice — male British English", is_default: false, has_ref: true, is_conditioned: true },
   { voice_id: "Emma", name: "Emma (British, soft)", ref_text: "Polly neural voice — soft and warm British English", is_default: false, has_ref: true, is_conditioned: true },
-  { voice_id: "Arthur", name: "Arthur (British, male)", ref_text: "Polly neural voice — deep male British English", is_default: false, has_ref: true, is_conditioned: true },
+  { voice_id: "Matthew", name: "Matthew (British, male)", ref_text: "Polly neural voice — deep male British English", is_default: false, has_ref: true, is_conditioned: true },
 ];
 
 /**

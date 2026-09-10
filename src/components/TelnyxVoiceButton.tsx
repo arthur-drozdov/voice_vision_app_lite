@@ -2,7 +2,7 @@
  * TelnyxVoiceButton
  *
  * Connects browser directly to the Telnyx AI Assistant via WebRTC.
- * The assistant handles STT → LLM → TTS with Szonja's cloned voice + all tools.
+ * The assistant handles STT → LLM → TTS with a custom cloned voice + all tools.
  *
  * No Lambda, no VAD model — just browser WebRTC → Telnyx carrier network.
  */

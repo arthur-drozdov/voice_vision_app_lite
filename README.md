@@ -149,8 +149,8 @@ Key configuration:
 
 The backend uses:
 
-- **ASR Server**: `ws://stt-server.example.com:8002/ws/asr`
-- **TTS Server**: `ws://llm-server.example.com:8001/ws/tts`
+- **ASR Server**: `ws://localhost:8002/ws/asr` (configurable via `STT_SERVER_URL`)
+- **TTS Server**: `ws://localhost:8001/ws/tts` (configurable via `TTS_SERVER_URL`)
 
 These external servers handle speech recognition and synthesis.
 

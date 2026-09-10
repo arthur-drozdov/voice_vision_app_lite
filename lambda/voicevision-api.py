@@ -23,10 +23,9 @@ from datetime import datetime
 TS_SOCKET = "/tmp/tailscale/tailscaled.sock"
 TS_DIR = "/tmp/tailscale"
 
-GATEWAY_HOST = "gateway.example.com"
-GATEWAY_PORT = 18789
-GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_WS_TOKEN",
-    "***REDACTED-GATEWAY-TOKEN***")
+GATEWAY_HOST = os.environ.get("GATEWAY_HOST", "gateway.example.com")
+GATEWAY_PORT = int(os.environ.get("GATEWAY_PORT", "18789"))
+GATEWAY_TOKEN = os.environ["OPENCLAW_GATEWAY_WS_TOKEN"]
 
 AGENTS = {"eden": "eden", "noe": "noe", "flo": "flo", 
           "spark": "spark", "luna": "luna"}

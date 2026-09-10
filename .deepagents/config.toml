@@ -4,5 +4,5 @@ default = "openai:Qwen/Qwen3.5-122B-A10B-FP8"
 [models.providers.openai]
 models = ["Qwen/Qwen3.5-122B-A10B-FP8"]
 api_key_env = "OPENAI_API_KEY"
-base_url = "http://llm-server.example.com:8000/v1"
+base_url = "http://127.0.0.1:8000/v1"
 max_input_tokens = 128000

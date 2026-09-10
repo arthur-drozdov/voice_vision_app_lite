@@ -45,21 +45,21 @@ export const MEMORY_CATEGORIES: CategoryInfo[] = [
     label: "Personal Preferences",
     emoji: "🎵",
     description: "Remember your favourite music, news sources, and content styles.",
-    preview: "\"Szonja prefers lo-fi beats while working and reads tech news in the morning.\"",
+    preview: "\"Alex prefers lo-fi beats while working and reads tech news in the morning.\"",
   },
   {
     key: "emotions",
     label: "Emotional Patterns",
     emoji: "💜",
     description: "Remember your mood shifts to offer better support when you need it.",
-    preview: "\"Szonja tends to feel more creative in the evenings and prefers calm energy on Mondays.\"",
+    preview: "\"Alex tends to feel more creative in the evenings and prefers calm energy on Mondays.\"",
   },
   {
     key: "goals",
     label: "Life Goals & Projects",
     emoji: "🎯",
     description: "Remember your long-term projects, deadlines, and creative ideas.",
-    preview: "\"Szonja is building an AI companion app with a launch target in April.\"",
+    preview: "\"Alex is building an AI companion app with a launch target in April.\"",
   },
   {
     key: "wellness",
@@ -67,14 +67,14 @@ export const MEMORY_CATEGORIES: CategoryInfo[] = [
     emoji: "🧘",
     description: "Remember your wellness routines, meditation preferences, and health reminders.",
     sensitive: true,
-    preview: "\"Szonja meditates for 10 minutes each morning and prefers guided breathing exercises.\"",
+    preview: "\"Alex meditates for 10 minutes each morning and prefers guided breathing exercises.\"",
   },
   {
     key: "creative",
     label: "Creative Spark",
     emoji: "✨",
     description: "Remember your creative interests to suggest new ideas and inspiration.",
-    preview: "\"Szonja loves generative art, enjoys writing prompts, and is inspired by nature photography.\"",
+    preview: "\"Alex loves generative art, enjoys writing prompts, and is inspired by nature photography.\"",
   },
 ];
 

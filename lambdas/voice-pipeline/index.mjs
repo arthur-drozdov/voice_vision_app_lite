@@ -76,13 +76,14 @@ async function callBedrock(transcript, region) {
       "You are a warm, friendly voice assistant. Keep every response to 1-2 short sentences.",
       "Be conversational and natural — never robotic or formal.",
       "Never use markdown, asterisks, emoji, or special formatting.",
-      "If asked who you are: you're a voice assistant built by Arthur and Sonnia, running on AWS.",
+      "If asked who you are: you're a friendly voice assistant running on AWS.",
     ].join(" "),
     messages: [{ role: "user", content: [{ type: "text", text: transcript }] }],
   });
 
   const cmd = new InvokeModelCommand({
-    modelId: "arn:aws:bedrock:eu-west-2:111122223333:inference-profile/eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+    modelId: process.env.BEDROCK_MODEL_ID ||
+      "arn:aws:bedrock:eu-west-2:111122223333:inference-profile/eu.anthropic.claude-haiku-4-5-20251001-v1:0",
     contentType: "application/json",
     accept: "application/json",
     body,

@@ -127,15 +127,16 @@ class TavilySearch(BaseTool):
 async def lifespan(app: FastAPI):
     global agent, _base_model, _tools_dict
     try:
+        _llm_base_url = os.environ.get("LLM_BASE_URL", "http://127.0.0.1:8000/v1")
         _base_model = ChatOpenAI(
             model="Qwen/Qwen3.5-122B-A10B-FP8",
-            base_url="http://llm-server.example.com:8000/v1",
+            base_url=_llm_base_url,
             api_key=os.environ.get("OPENAI_API_KEY", "pancakes"),
             streaming=True,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         logger.info(
-            "Model: Qwen/Qwen3.5-122B-A10B-FP8 @ http://llm-server.example.com:8000/v1"
+            f"Model: Qwen/Qwen3.5-122B-A10B-FP8 @ {_llm_base_url}"
         )
 
         system_prompt = (

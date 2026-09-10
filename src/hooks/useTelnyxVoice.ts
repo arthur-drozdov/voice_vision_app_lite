@@ -2,7 +2,7 @@
  * useTelnyxVoice
  *
  * Connects the browser directly to the Telnyx AI Assistant via WebRTC.
- * The assistant handles STT → LLM → TTS with Szonja's cloned voice,
+ * The assistant handles STT → LLM → TTS with a custom cloned voice,
  * plus all tools (mem0, Notion, GitHub, email, etc.).
  *
  * No Lambda — browser talks directly to Telnyx's carrier network.

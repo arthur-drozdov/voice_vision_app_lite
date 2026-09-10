@@ -13,12 +13,12 @@ const server = new LLMRTCServer({
             wsUrl: process.env.CHAT_SERVER_URL || 'ws://127.0.0.1:8080/chat'
         }),
         stt: new CustomWebSocketSTTProvider({
-            wsUrl: process.env.STT_SERVER_URL || 'ws://stt-server.example.com:8002/ws/asr'
+            wsUrl: process.env.STT_SERVER_URL || 'ws://127.0.0.1:8002/ws/asr'
         }),
         tts: new CustomWebSocketTTSProvider({
-            wsUrl: process.env.TTS_SERVER_URL || 'ws://llm-server.example.com:8001/ws/tts',
+            wsUrl: process.env.TTS_SERVER_URL || 'ws://127.0.0.1:8001/ws/tts',
             refWavPath: path.resolve(import.meta.dirname, '../data/voices/default.wav'),
-            refText: "Hi, I'm Arthur. I designed and built Cisco’s internal AI platform engineer used by developers in production to automate self-service workflows and deploy to Kubernetes environments. I evolved the system from a simple ReAct agent to a Deep Agent with domain-specific sub-agents, which was contributed to the open-source project cape: Community AI Platform Engineering. I implemented tooling to generate agents compatible with the A2A protocol and evaluation suites from OpenAPI specs with end-to-end LangFuse integrations for tracing and observability. I'm developing an internal multi-agent system and web app for marketing professionals."
+            refText: "Hi, I'm a voice assistant. This is the reference text used to condition the default text-to-speech voice. Replace it with a short sample matching the audio in your reference WAV file."
         })
     },
     port: 8787,

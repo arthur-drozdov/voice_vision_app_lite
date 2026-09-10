@@ -143,15 +143,16 @@ async def lifespan(app: FastAPI):
         # Build ChatOpenAI pointing directly at the custom Qwen-compatible server.
         # OPENAI_API_KEY can be any non-empty string (e.g. "pancakes") — the server
         # doesn't validate it, but the client library requires it to be set.
+        _llm_base_url = os.environ.get("LLM_BASE_URL", "http://127.0.0.1:8000/v1")
         _base_model = ChatOpenAI(
             model="Qwen/Qwen3.5-122B-A10B-FP8",
-            base_url="http://llm-server.example.com:8000/v1",
+            base_url=_llm_base_url,
             api_key=os.environ.get("OPENAI_API_KEY", "pancakes"),
             streaming=True,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         logger.info(
-            "Model: Qwen/Qwen3.5-122B-A10B-FP8 @ http://llm-server.example.com:8000/v1"
+            f"Model: Qwen/Qwen3.5-122B-A10B-FP8 @ {_llm_base_url}"
         )
 
         system_prompt = (
@@ -865,7 +866,7 @@ async def transcribe_with_spark_asr(audio_path: str) -> str:
     import websockets
 
     asr_url = os.environ.get(
-        "STT_SERVER_URL", "ws://stt-server.example.com:8002/ws/asr"
+        "STT_SERVER_URL", "ws://127.0.0.1:8002/ws/asr"
     )
     if not asr_url.endswith("/ws/asr"):
         # If it doesn't end with /ws/asr, check if it's just the host:port
@@ -916,7 +917,7 @@ async def synthesize_with_spark_tts(
     from services.voice_store import get_voice_store
 
     tts_url = os.environ.get(
-        "TTS_SERVER_URL", "ws://llm-server.example.com:8001/ws/tts"
+        "TTS_SERVER_URL", "ws://127.0.0.1:8001/ws/tts"
     )
     if not tts_url.endswith("/ws/tts"):
         if tts_url.count("/") < 3:
